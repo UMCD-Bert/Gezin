@@ -580,7 +580,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 
     // --- Init ---
     (async function init() {
-      if (!supabase) { console.error('Supabase-client kon niet worden aangemaakt.'); return; }
+      if (!supabase) { console.error('Supabase-client kon niet worden aangemaakt. '); return; }
       await loadVasteArtikelen();
       await cleanupExpiredItems();
       await loadItems();
