@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Gezin</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏠</text></svg>">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --border: #e2e4e8;
+    --text: #1c1e21;
+    --muted: #8a8f98;
+    --accent: #3b82f6;
+    --danger: #e5484d;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding-bottom: 90px;
+  }
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  nav {
+    position: sticky; top: 53px; z-index: 9;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    overflow-x: auto;
+  }
+  nav button {
+    flex: 1; padding: 10px 6px; border: none; background: none;
+    font-size: 14px; color: var(--muted); border-bottom: 2px solid transparent;
+    cursor: pointer;
+  }
+  nav button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+  main { padding: 12px; max-width: 640px; margin: 0 auto; }
+
+  .add-bar {
+    position: sticky; top: 94px; z-index: 8;
+    background: var(--bg);
+    padding: 8px 0 12px;
+  }
+  .add-form {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px;
+  }
+  .add-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .add-row:last-child { margin-bottom: 0; }
+  .combo-wrap { position: relative; flex: 1; }
+  input, select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 15px;
+    background: #fff;
+  }
+  .suggestions {
+    position: absolute; left: 0; right: 0; top: 100%;
+    background: #fff; border: 1px solid var(--border); border-top: none;
+    border-radius: 0 0 8px 8px; max-height: 180px; overflow-y: auto; z-index: 20;
+  }
+  .suggestions div { padding: 8px 12px; font-size: 14px; cursor: pointer; }
+  .suggestions div:hover, .suggestions div.active { background: var(--bg); }
+  .btn-add {
+    background: var(--accent); color: #fff; border: none;
+    border-radius: 8px; padding: 0 16px; font-size: 20px; font-weight: 600;
+    cursor: pointer; min-width: 44px;
+  }
+  .detail-row { display: none; gap: 8px; }
+  .detail-row.open { display: flex; }
+  .toggle-detail {
+    background: none; border: none; color: var(--accent); font-size: 13px;
+    padding: 4px 0; cursor: pointer;
+  }
+
+  .categorie-groep { margin-bottom: 18px; }
+  .categorie-titel {
+    font-size: 13px; font-weight: 700; text-transform: uppercase;
+    color: var(--muted); letter-spacing: 0.04em; margin: 0 0 6px 4px;
+  }
+  ul.items { list-style: none; margin: 0; padding: 0; }
+  li.item {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 12px; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  li.item.afgevinkt { opacity: 0.5; }
+  .checkbox {
+    width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--accent);
+    flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: #fff;
+  }
+  li.item.afgevinkt .checkbox { background: var(--accent); }
+  .item-main { flex: 1; min-width: 0; }
+  .item-naam { font-size: 15px; }
+  li.item.afgevinkt .item-naam { text-decoration: line-through; }
+  .item-meta { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .badge-winkel {
+    font-size: 11px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 100px; padding: 2px 8px; color: var(--muted); white-space: nowrap;
+  }
+  .empty-state { text-align: center; color: var(--muted); padding: 40px 20px; font-size: 14px; }
+
+  .vaste-artikelen-link {
+    display: block; text-align: center; font-size: 13px; color: var(--accent);
+    padding: 14px; cursor: pointer;
+  }
+
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 50;
+    align-items: flex-end; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #fff; width: 100%; max-width: 640px; max-height: 80vh;
+    border-radius: 16px 16px 0 0; padding: 16px; overflow-y: auto;
+  }
+  .modal h2 { margin: 0 0 12px; font-size: 16px; }
+  .modal-close { float: right; border: none; background: none; font-size: 20px; color: var(--muted); cursor: pointer; }
+  .vast-item-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .vast-item-row .naam { flex: 1; font-size: 14px; }
+  .vast-item-row .cat { font-size: 12px; color: var(--muted); }
+  .vast-item-row button { background: none; border: none; color: var(--danger); font-size: 18px; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🏠 Gezin</h1>
+</header>
+<nav>
+  <button class="active" data-tab="boodschappen">🛒 Boodschappen</button>
+  <button data-tab="kalender" disabled title="Nog te bouwen">📅 Kalender</button>
+  <button data-tab="taken" disabled title="Nog te bouwen">✅ Taken</button>
+  <button data-tab="recepten" disabled title="Nog te bouwen">📖 Recepten</button>
+</nav>
+
+<main>
+  <div class="add-bar">
+    <div class="add-form">
+      <div class="add-row">
+        <div class="combo-wrap">
+          <input id="naam-input" type="text" placeholder="Wat heb je nodig?" autocomplete="off">
+          <div id="suggestions" class="suggestions" style="display:none;"></div>
+        </div>
+        <button class="btn-add" id="add-btn" title="Toevoegen">+</button>
+      </div>
+      <button class="toggle-detail" id="toggle-detail-btn">+ aantal / winkel toevoegen</button>
+      <div class="add-row detail-row" id="detail-row">
+        <input id="detail-input" type="text" placeholder="Aantal/gewicht (optioneel)">
+        <input id="winkel-input" type="text" placeholder="Winkel (optioneel)">
+      </div>
+      <div class="add-row">
+        <select id="categorie-select"></select>
+      </div>
+    </div>
+  </div>
+
+  <div id="lijst"></div>
+
+  <div class="vaste-artikelen-link" id="open-vaste-artikelen">⚙️ Vaste artikelen beheren</div>
+</main>
+
+<div class="modal-overlay" id="vaste-modal-overlay">
+  <div class="modal">
+    <button class="modal-close" id="close-vaste-modal">✕</button>
+    <h2>Vaste artikelen</h2>
+    <div class="add-row">
+      <input id="vast-naam-input" type="text" placeholder="Naam (bijv. Melk)">
+      <select id="vast-categorie-select"></select>
+    </div>
+    <button class="btn-add" id="vast-add-btn" style="margin:8px 0 12px; width:100%;">+ Toevoegen aan vaste lijst</button>
+    <div id="vaste-lijst"></div>
+  </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------
+// Config
+// ---------------------------------------------------------------
+const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
+
+// Vaste, voorgedefinieerde categorieën — volgorde bepaalt sortering.
+const CATEGORIEEN = ['Zuivel', 'Groente & Fruit', 'Brood & Beleg', 'Vlees & Vis', 'Drogisterij', 'Huishouden', 'Overig'];
+
+// ---------------------------------------------------------------
+// App module — pure logic, geen DOM/Supabase-afhankelijkheid waar mogelijk,
+// zodat het los te testen is via jsdom + gemockte supabase-client.
+// ---------------------------------------------------------------
+const GezinBoodschappen = (function () {
+
+  function sortItems(items) {
+    // Groepeert op categorie (in vaste volgorde), binnen elke categorie:
+    // onafgevinkt eerst (alfabetisch), dan afgevinkt (alfabetisch).
+    const groups = {};
+    for (const cat of CATEGORIEEN) groups[cat] = { open: [], afgevinkt: [] };
+
+    for (const item of items) {
+      const cat = CATEGORIEEN.includes(item.categorie) ? item.categorie : 'Overig';
+      if (item.afgevinkt) groups[cat].afgevinkt.push(item);
+      else groups[cat].open.push(item);
+    }
+
+    const byNaam = (a, b) => a.naam.localeCompare(b.naam, 'nl');
+    const result = [];
+    for (const cat of CATEGORIEEN) {
+      const g = groups[cat];
+      g.open.sort(byNaam);
+      g.afgevinkt.sort(byNaam);
+      if (g.open.length === 0 && g.afgevinkt.length === 0) continue;
+      result.push({ categorie: cat, items: [...g.open, ...g.afgevinkt] });
+    }
+    return result;
+  }
+
+  function isExpiredIncidenteel(item, now) {
+    // Incidentele items (geen vast_artikel_id) die >1 dag geleden zijn
+    // afgevinkt mogen automatisch verdwijnen.
+    if (item.vast_artikel_id) return false;
+    if (!item.afgevinkt || !item.afgevinkt_op) return false;
+    const afgevinktOp = new Date(item.afgevinkt_op).getTime();
+    return (now - afgevinktOp) > 24 * 60 * 60 * 1000;
+  }
+
+  function filterSuggestions(vasteArtikelen, query) {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return vasteArtikelen
+      .filter(v => v.naam.toLowerCase().includes(q))
+      .sort((a, b) => a.naam.localeCompare(b.naam, 'nl'))
+      .slice(0, 8);
+  }
+
+  function buildInsertPayload({ naam, detail, categorie, winkel, vastArtikel }) {
+    if (!naam || !naam.trim()) throw new Error('Naam is verplicht');
+    if (!categorie || !CATEGORIEEN.includes(categorie)) throw new Error('Ongeldige categorie');
+    return {
+      naam: naam.trim(),
+      detail: detail && detail.trim() ? detail.trim() : null,
+      categorie,
+      winkel: winkel && winkel.trim() ? winkel.trim() : null,
+      vast_artikel_id: vastArtikel ? vastArtikel.id : null,
+      afgevinkt: false,
+      afgevinkt_op: null,
+    };
+  }
+
+  // Bepaalt wat er moet gebeuren als een item wordt afgevinkt/uitgevinkt.
+  // Vast artikel + afvinken -> direct verwijderen (comeback via vaste lijst).
+  // Incidenteel + afvinken  -> markeren + timestamp (opruimen na 1 dag).
+  // Uitvinken (undo)        -> altijd terug naar onafgevinkt, timestamp weg.
+  function toggleAction(item) {
+    if (!item.afgevinkt) {
+      // wordt afgevinkt
+      if (item.vast_artikel_id) {
+        return { type: 'delete', id: item.id };
+      }
+      return { type: 'update', id: item.id, changes: { afgevinkt: true, afgevinkt_op: new Date().toISOString() } };
+    }
+    // wordt uitgevinkt (alleen mogelijk voor incidentele items, want vaste zijn al weg)
+    return { type: 'update', id: item.id, changes: { afgevinkt: false, afgevinkt_op: null } };
+  }
+
+  function cleanupExpired(items, now = Date.now()) {
+    return items.filter(i => isExpiredIncidenteel(i, now)).map(i => i.id);
+  }
+
+  return { sortItems, isExpiredIncidenteel, filterSuggestions, buildInsertPayload, toggleAction, cleanupExpired, CATEGORIEEN };
+})();
+
+// Maak beschikbaar voor de jsdom-testrunner (Node) én de browser.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = GezinBoodschappen;
+}
+
+// ---------------------------------------------------------------
+// DOM/Supabase wiring — draait alleen in de browser.
+// ---------------------------------------------------------------
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  (function initApp() {
+    const supabase = window.supabase && window.supabase.createClient
+      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+      : null;
+
+    let items = [];
+    let vasteArtikelen = [];
+    let selectedVastArtikel = null;
+
+    const naamInput = document.getElementById('naam-input');
+    const suggestionsBox = document.getElementById('suggestions');
+    const detailInput = document.getElementById('detail-input');
+    const winkelInput = document.getElementById('winkel-input');
+    const categorieSelect = document.getElementById('categorie-select');
+    const addBtn = document.getElementById('add-btn');
+    const lijstEl = document.getElementById('lijst');
+    const toggleDetailBtn = document.getElementById('toggle-detail-btn');
+    const detailRow = document.getElementById('detail-row');
+
+    function populateCategorieSelects() {
+      for (const sel of [categorieSelect, document.getElementById('vast-categorie-select')]) {
+        sel.innerHTML = GezinBoodschappen.CATEGORIEEN.map(c => `<option value="${c}">${c}</option>`).join('');
+      }
+    }
+    populateCategorieSelects();
+
+    toggleDetailBtn.addEventListener('click', () => {
+      detailRow.classList.toggle('open');
+    });
+
+    naamInput.addEventListener('input', () => {
+      selectedVastArtikel = null;
+      const matches = GezinBoodschappen.filterSuggestions(vasteArtikelen, naamInput.value);
+      if (matches.length === 0) {
+        suggestionsBox.style.display = 'none';
+        return;
+      }
+      suggestionsBox.innerHTML = matches.map(m => `<div data-id="${m.id}">${m.naam}</div>`).join('');
+      suggestionsBox.style.display = 'block';
+    });
+
+    suggestionsBox.addEventListener('click', (e) => {
+      const id = e.target.getAttribute('data-id');
+      if (!id) return;
+      const v = vasteArtikelen.find(x => String(x.id) === String(id));
+      if (!v) return;
+      selectedVastArtikel = v;
+      naamInput.value = v.naam;
+      categorieSelect.value = v.categorie;
+      suggestionsBox.style.display = 'none';
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.combo-wrap')) suggestionsBox.style.display = 'none';
+    });
+
+    async function addItem() {
+      let payload;
+      try {
+        payload = GezinBoodschappen.buildInsertPayload({
+          naam: naamInput.value,
+          detail: detailInput.value,
+          categorie: categorieSelect.value,
+          winkel: winkelInput.value,
+          vastArtikel: selectedVastArtikel,
+        });
+      } catch (err) {
+        alert(err.message);
+        return;
+      }
+      const { error } = await supabase.from('boodschappen_items').insert(payload);
+      if (error) { alert('Kon niet toevoegen: ' + error.message); return; }
+      naamInput.value = '';
+      detailInput.value = '';
+      winkelInput.value = '';
+      selectedVastArtikel = null;
+      detailRow.classList.remove('open');
+      naamInput.focus();
+    }
+    addBtn.addEventListener('click', addItem);
+    naamInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addItem(); });
+
+    async function toggleItem(item) {
+      const action = GezinBoodschappen.toggleAction(item);
+      if (action.type === 'delete') {
+        await supabase.from('boodschappen_items').delete().eq('id', action.id);
+      } else {
+        await supabase.from('boodschappen_items').update(action.changes).eq('id', action.id);
+      }
+    }
+
+    async function cleanupExpiredItems() {
+      const idsToDelete = GezinBoodschappen.cleanupExpired(items);
+      if (idsToDelete.length === 0) return;
+      await supabase.from('boodschappen_items').delete().in('id', idsToDelete);
+    }
+
+    function render() {
+      const groups = GezinBoodschappen.sortItems(items);
+      if (groups.length === 0) {
+        lijstEl.innerHTML = '<div class="empty-state">Boodschappenlijst is leeg 🎉</div>';
+        return;
+      }
+      lijstEl.innerHTML = groups.map(g => `
+        <div class="categorie-groep">
+          <div class="categorie-titel">${g.categorie}</div>
+          <ul class="items">
+            ${g.items.map(item => `
+              <li class="item ${item.afgevinkt ? 'afgevinkt' : ''}" data-id="${item.id}">
+                <div class="checkbox">${item.afgevinkt ? '✓' : ''}</div>
+                <div class="item-main">
+                  <div class="item-naam">${escapeHtml(item.naam)}${item.detail ? ' — ' + escapeHtml(item.detail) : ''}</div>
+                </div>
+                ${item.winkel ? `<span class="badge-winkel">${escapeHtml(item.winkel)}</span>` : ''}
+              </li>
+            `).join('')}
+          </ul>
+        </div>
+      `).join('');
+
+      lijstEl.querySelectorAll('.item').forEach(el => {
+        el.addEventListener('click', () => {
+          const id = el.getAttribute('data-id');
+          const item = items.find(i => String(i.id) === String(id));
+          if (item) toggleItem(item);
+        });
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    async function loadItems() {
+      const { data, error } = await supabase.from('boodschappen_items').select('*');
+      if (error) { console.error(error); return; }
+      items = data || [];
+      render();
+    }
+
+    async function loadVasteArtikelen() {
+      const { data, error } = await supabase.from('boodschappen_vaste_artikelen').select('*');
+      if (error) { console.error(error); return; }
+      vasteArtikelen = data || [];
+      renderVasteLijst();
+    }
+
+    // --- Vaste artikelen modal ---
+    const vastModalOverlay = document.getElementById('vaste-modal-overlay');
+    document.getElementById('open-vaste-artikelen').addEventListener('click', () => {
+      vastModalOverlay.classList.add('open');
+    });
+    document.getElementById('close-vaste-modal').addEventListener('click', () => {
+      vastModalOverlay.classList.remove('open');
+    });
+    document.getElementById('vast-add-btn').addEventListener('click', async () => {
+      const naamEl = document.getElementById('vast-naam-input');
+      const catEl = document.getElementById('vast-categorie-select');
+      if (!naamEl.value.trim()) { alert('Naam is verplicht'); return; }
+      const { error } = await supabase.from('boodschappen_vaste_artikelen').insert({
+        naam: naamEl.value.trim(),
+        categorie: catEl.value,
+      });
+      if (error) { alert('Kon niet toevoegen: ' + error.message); return; }
+      naamEl.value = '';
+    });
+
+    function renderVasteLijst() {
+      const el = document.getElementById('vaste-lijst');
+      const sorted = [...vasteArtikelen].sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
+      el.innerHTML = sorted.map(v => `
+        <div class="vast-item-row" data-id="${v.id}">
+          <span class="naam">${escapeHtml(v.naam)}</span>
+          <span class="cat">${escapeHtml(v.categorie)}</span>
+          <button data-action="delete">🗑</button>
+        </div>
+      `).join('');
+      el.querySelectorAll('[data-action="delete"]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const id = e.target.closest('.vast-item-row').getAttribute('data-id');
+          await supabase.from('boodschappen_vaste_artikelen').delete().eq('id', id);
+        });
+      });
+    }
+
+    // --- Realtime ---
+    function subscribeRealtime() {
+      supabase.channel('boodschappen_items_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'boodschappen_items' }, () => {
+          loadItems();
+        })
+        .subscribe();
+      supabase.channel('vaste_artikelen_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'boodschappen_vaste_artikelen' }, () => {
+          loadVasteArtikelen();
+        })
+        .subscribe();
+    }
+
+    // --- Init ---
+    (async function init() {
+      if (!supabase) { console.error('Supabase-client kon niet worden aangemaakt.'); return; }
+      await loadVasteArtikelen();
+      await cleanupExpiredItems();
+      await loadItems();
+      subscribeRealtime();
+    })();
+  })();
+}
+</script>
+</body>
+</html>
