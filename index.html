@@ -33,6 +33,8 @@
     display: flex; align-items: center; justify-content: space-between;
   }
   header h1 { font-size: 18px; margin: 0; }
+  header .versie { font-size: 12px; color: var(--muted); margin-left: 8px; font-weight: 400; }
+  header .titel-wrap { display: flex; align-items: baseline; }
   nav {
     position: sticky; top: 53px; z-index: 9;
     background: var(--card);
@@ -83,12 +85,7 @@
     border-radius: 8px; padding: 0 16px; font-size: 20px; font-weight: 600;
     cursor: pointer; min-width: 44px;
   }
-  .detail-row { display: none; gap: 8px; }
-  .detail-row.open { display: flex; }
-  .toggle-detail {
-    background: none; border: none; color: var(--accent); font-size: 13px;
-    padding: 4px 0; cursor: pointer;
-  }
+  .detail-row { display: flex; gap: 8px; }
 
   .categorie-groep { margin-bottom: 18px; }
   .categorie-titel {
@@ -115,6 +112,10 @@
   .badge-winkel {
     font-size: 11px; background: var(--bg); border: 1px solid var(--border);
     border-radius: 100px; padding: 2px 8px; color: var(--muted); white-space: nowrap;
+  }
+  .edit-btn {
+    background: none; border: none; color: var(--muted); font-size: 16px;
+    cursor: pointer; padding: 4px; flex-shrink: 0; line-height: 1;
   }
   .empty-state { text-align: center; color: var(--muted); padding: 40px 20px; font-size: 14px; }
 
@@ -143,7 +144,10 @@
 <body>
 
 <header>
-  <h1>🏠 Gezin</h1>
+  <div class="titel-wrap">
+    <h1>🏠 Gezin</h1>
+    <span class="versie" id="versie-label"></span>
+  </div>
 </header>
 <nav>
   <button class="active" data-tab="boodschappen">🛒 Boodschappen</button>
@@ -162,8 +166,7 @@
         </div>
         <button class="btn-add" id="add-btn" title="Toevoegen">+</button>
       </div>
-      <button class="toggle-detail" id="toggle-detail-btn">+ aantal / winkel toevoegen</button>
-      <div class="add-row detail-row" id="detail-row">
+      <div class="add-row detail-row">
         <input id="detail-input" type="text" placeholder="Aantal/gewicht (optioneel)">
         <input id="winkel-input" type="text" placeholder="Winkel (optioneel)">
       </div>
@@ -191,15 +194,39 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="edit-modal-overlay">
+  <div class="modal">
+    <button class="modal-close" id="close-edit-modal">✕</button>
+    <h2>Item bewerken</h2>
+    <div class="add-row">
+      <input id="edit-naam-input" type="text" placeholder="Naam">
+    </div>
+    <div class="add-row">
+      <input id="edit-detail-input" type="text" placeholder="Aantal/gewicht (optioneel)">
+      <input id="edit-winkel-input" type="text" placeholder="Winkel (optioneel)">
+    </div>
+    <div class="add-row">
+      <select id="edit-categorie-select"></select>
+    </div>
+    <button class="btn-add" id="edit-save-btn" style="margin-top:4px; width:100%;">Opslaan</button>
+  </div>
+</div>
+
 <script>
 // ---------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
+const APP_VERSIE = 'v0.1';
 
 // Vaste, voorgedefinieerde categorieën — volgorde bepaalt sortering.
-const CATEGORIEEN = ['Zuivel', 'Groente & Fruit', 'Brood & Beleg', 'Vlees & Vis', 'Drogisterij', 'Huishouden', 'Overig'];
+// Volgt de looproute door de supermarkt.
+const CATEGORIEEN = [
+  'Groente en fruit', 'Broodbeleg', 'Buitenlands', 'Diervoeding', 'Huishouden',
+  'Conserven', 'Broodafdeling', 'Zuivel', 'Dranken', 'Chips en nootjes',
+  'Snoep en koek', 'Diepvries', 'Overig',
+];
 
 // ---------------------------------------------------------------
 // App module — pure logic, geen DOM/Supabase-afhankelijkheid waar mogelijk,
@@ -263,6 +290,20 @@ const GezinBoodschappen = (function () {
     };
   }
 
+  // Bewerken raakt nooit vast_artikel_id/afgevinkt-status — alleen de
+  // beschrijvende velden van deze ene rij, ongeacht of hij incidenteel of
+  // vanuit de vaste-artikelenlijst is toegevoegd.
+  function buildUpdatePayload({ naam, detail, categorie, winkel }) {
+    if (!naam || !naam.trim()) throw new Error('Naam is verplicht');
+    if (!categorie || !CATEGORIEEN.includes(categorie)) throw new Error('Ongeldige categorie');
+    return {
+      naam: naam.trim(),
+      detail: detail && detail.trim() ? detail.trim() : null,
+      categorie,
+      winkel: winkel && winkel.trim() ? winkel.trim() : null,
+    };
+  }
+
   // Bepaalt wat er moet gebeuren als een item wordt afgevinkt/uitgevinkt.
   // Vast artikel + afvinken -> direct verwijderen (comeback via vaste lijst).
   // Incidenteel + afvinken  -> markeren + timestamp (opruimen na 1 dag).
@@ -283,7 +324,7 @@ const GezinBoodschappen = (function () {
     return items.filter(i => isExpiredIncidenteel(i, now)).map(i => i.id);
   }
 
-  return { sortItems, isExpiredIncidenteel, filterSuggestions, buildInsertPayload, toggleAction, cleanupExpired, CATEGORIEEN };
+  return { sortItems, isExpiredIncidenteel, filterSuggestions, buildInsertPayload, buildUpdatePayload, toggleAction, cleanupExpired, CATEGORIEEN };
 })();
 
 // Maak beschikbaar voor de jsdom-testrunner (Node) én de browser.
@@ -311,19 +352,16 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     const categorieSelect = document.getElementById('categorie-select');
     const addBtn = document.getElementById('add-btn');
     const lijstEl = document.getElementById('lijst');
-    const toggleDetailBtn = document.getElementById('toggle-detail-btn');
-    const detailRow = document.getElementById('detail-row');
+
+    const versieLabel = document.getElementById('versie-label');
+    if (versieLabel) versieLabel.textContent = APP_VERSIE;
 
     function populateCategorieSelects() {
-      for (const sel of [categorieSelect, document.getElementById('vast-categorie-select')]) {
+      for (const sel of [categorieSelect, document.getElementById('vast-categorie-select'), document.getElementById('edit-categorie-select')]) {
         sel.innerHTML = GezinBoodschappen.CATEGORIEEN.map(c => `<option value="${c}">${c}</option>`).join('');
       }
     }
     populateCategorieSelects();
-
-    toggleDetailBtn.addEventListener('click', () => {
-      detailRow.classList.toggle('open');
-    });
 
     naamInput.addEventListener('input', () => {
       selectedVastArtikel = null;
@@ -371,7 +409,6 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       detailInput.value = '';
       winkelInput.value = '';
       selectedVastArtikel = null;
-      detailRow.classList.remove('open');
       naamInput.focus();
     }
     addBtn.addEventListener('click', addItem);
@@ -385,6 +422,46 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         await supabase.from('boodschappen_items').update(action.changes).eq('id', action.id);
       }
     }
+
+    // --- Item bewerken ---
+    const editModalOverlay = document.getElementById('edit-modal-overlay');
+    const editNaamInput = document.getElementById('edit-naam-input');
+    const editDetailInput = document.getElementById('edit-detail-input');
+    const editWinkelInput = document.getElementById('edit-winkel-input');
+    const editCategorieSelect = document.getElementById('edit-categorie-select');
+    let editingItemId = null;
+
+    function openEditModal(item) {
+      editingItemId = item.id;
+      editNaamInput.value = item.naam;
+      editDetailInput.value = item.detail || '';
+      editWinkelInput.value = item.winkel || '';
+      editCategorieSelect.value = item.categorie;
+      editModalOverlay.classList.add('open');
+    }
+    document.getElementById('close-edit-modal').addEventListener('click', () => {
+      editModalOverlay.classList.remove('open');
+      editingItemId = null;
+    });
+    document.getElementById('edit-save-btn').addEventListener('click', async () => {
+      if (editingItemId == null) return;
+      let changes;
+      try {
+        changes = GezinBoodschappen.buildUpdatePayload({
+          naam: editNaamInput.value,
+          detail: editDetailInput.value,
+          categorie: editCategorieSelect.value,
+          winkel: editWinkelInput.value,
+        });
+      } catch (err) {
+        alert(err.message);
+        return;
+      }
+      const { error } = await supabase.from('boodschappen_items').update(changes).eq('id', editingItemId);
+      if (error) { alert('Kon niet opslaan: ' + error.message); return; }
+      editModalOverlay.classList.remove('open');
+      editingItemId = null;
+    });
 
     async function cleanupExpiredItems() {
       const idsToDelete = GezinBoodschappen.cleanupExpired(items);
@@ -404,11 +481,12 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           <ul class="items">
             ${g.items.map(item => `
               <li class="item ${item.afgevinkt ? 'afgevinkt' : ''}" data-id="${item.id}">
-                <div class="checkbox">${item.afgevinkt ? '✓' : ''}</div>
-                <div class="item-main">
+                <div class="checkbox" data-role="toggle">${item.afgevinkt ? '✓' : ''}</div>
+                <div class="item-main" data-role="toggle">
                   <div class="item-naam">${escapeHtml(item.naam)}${item.detail ? ' — ' + escapeHtml(item.detail) : ''}</div>
                 </div>
                 ${item.winkel ? `<span class="badge-winkel">${escapeHtml(item.winkel)}</span>` : ''}
+                <button class="edit-btn" data-role="edit" title="Bewerken">✏️</button>
               </li>
             `).join('')}
           </ul>
@@ -416,10 +494,16 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       `).join('');
 
       lijstEl.querySelectorAll('.item').forEach(el => {
-        el.addEventListener('click', () => {
-          const id = el.getAttribute('data-id');
+        const id = el.getAttribute('data-id');
+        el.querySelectorAll('[data-role="toggle"]').forEach(part => {
+          part.addEventListener('click', () => {
+            const item = items.find(i => String(i.id) === String(id));
+            if (item) toggleItem(item);
+          });
+        });
+        el.querySelector('[data-role="edit"]').addEventListener('click', () => {
           const item = items.find(i => String(i.id) === String(id));
-          if (item) toggleItem(item);
+          if (item) openEditModal(item);
         });
       });
     }
