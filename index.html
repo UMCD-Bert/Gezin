@@ -119,6 +119,32 @@
   }
   .empty-state { text-align: center; color: var(--muted); padding: 40px 20px; font-size: 14px; }
 
+  .maand-strip {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; margin-bottom: 12px;
+  }
+  .maand-nav-btn { background: none; border: none; font-size: 20px; color: var(--accent); cursor: pointer; padding: 4px 12px; }
+  .maand-label { font-weight: 600; font-size: 15px; }
+
+  .agenda-dag-groep { margin-bottom: 16px; }
+  .agenda-dag-titel {
+    font-size: 13px; font-weight: 700; color: var(--muted); margin: 0 0 6px 4px;
+  }
+  .agenda-item {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 10px;
+  }
+  .agenda-item .tijd { font-size: 13px; color: var(--muted); min-width: 42px; }
+  .agenda-item .titel { flex: 1; font-size: 15px; }
+  .agenda-item.verjaardag { background: #fff7e6; }
+  .wie-badge {
+    font-size: 11px; border-radius: 100px; padding: 2px 8px; white-space: nowrap; color: #fff;
+  }
+  .wie-Ik { background: #3b82f6; }
+  .wie-Mijn-vrouw { background: #ec4899; }
+  .wie-Samen { background: #10b981; }
+
   .vaste-artikelen-link {
     display: block; text-align: center; font-size: 13px; color: var(--accent);
     padding: 14px; cursor: pointer;
@@ -154,36 +180,82 @@
   </div>
 </header>
 <nav>
-  <button class="active" data-tab="boodschappen">🛒 Boodschappen</button>
-  <button data-tab="kalender" disabled title="Nog te bouwen">📅 Kalender</button>
-  <button data-tab="taken" disabled title="Nog te bouwen">✅ Taken</button>
-  <button data-tab="recepten" disabled title="Nog te bouwen">📖 Recepten</button>
+  <button class="tab-btn active" data-tab="boodschappen">🛒 Boodschappen</button>
+  <button class="tab-btn" data-tab="kalender">📅 Kalender</button>
+  <button class="tab-btn" data-tab="taken" disabled title="Nog te bouwen">✅ Taken</button>
+  <button class="tab-btn" data-tab="recepten" disabled title="Nog te bouwen">📖 Recepten</button>
 </nav>
 
 <main>
-  <div class="add-bar">
-    <div class="add-form">
-      <div class="add-row">
-        <div class="combo-wrap">
-          <input id="naam-input" type="text" placeholder="Wat heb je nodig?" autocomplete="off">
-          <div id="suggestions" class="suggestions" style="display:none;"></div>
+  <section id="tab-content-boodschappen" class="tab-content">
+    <div class="add-bar">
+      <div class="add-form">
+        <div class="add-row">
+          <div class="combo-wrap">
+            <input id="naam-input" type="text" placeholder="Wat heb je nodig?" autocomplete="off">
+            <div id="suggestions" class="suggestions" style="display:none;"></div>
+          </div>
+          <button class="btn-add" id="add-btn" title="Toevoegen">+</button>
         </div>
-        <button class="btn-add" id="add-btn" title="Toevoegen">+</button>
-      </div>
-      <div class="add-row detail-row">
-        <input id="detail-input" type="text" placeholder="Aantal/gewicht (optioneel)">
-        <input id="winkel-input" type="text" placeholder="Winkel (optioneel)">
-      </div>
-      <div class="add-row">
-        <select id="categorie-select"></select>
+        <div class="add-row detail-row">
+          <input id="detail-input" type="text" placeholder="Aantal/gewicht (optioneel)">
+          <input id="winkel-input" type="text" placeholder="Winkel (optioneel)">
+        </div>
+        <div class="add-row">
+          <select id="categorie-select"></select>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div id="lijst"></div>
+    <div id="lijst"></div>
 
-  <div class="vaste-artikelen-link" id="open-vaste-artikelen">⚙️ Vaste artikelen beheren</div>
+    <div class="vaste-artikelen-link" id="open-vaste-artikelen">⚙️ Vaste artikelen beheren</div>
+  </section>
+
+  <section id="tab-content-kalender" class="tab-content" style="display:none;">
+    <div class="maand-strip">
+      <button id="maand-vorige" class="maand-nav-btn">‹</button>
+      <span id="maand-label" class="maand-label"></span>
+      <button id="maand-volgende" class="maand-nav-btn">›</button>
+    </div>
+
+    <div class="add-bar">
+      <div class="add-form">
+        <div class="add-row">
+          <input id="afspraak-titel-input" type="text" placeholder="Titel afspraak">
+        </div>
+        <div class="add-row">
+          <input id="afspraak-datum-input" type="date">
+          <input id="afspraak-tijd-input" type="time" placeholder="Optioneel">
+        </div>
+        <div class="add-row">
+          <select id="afspraak-wie-select"></select>
+          <button class="btn-add" id="afspraak-add-btn" title="Toevoegen">+</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="agenda-lijst"></div>
+
+    <div class="vaste-artikelen-link" id="open-verjaardag-modal">🎂 Verjaardag toevoegen</div>
+  </section>
 </main>
+
+<div class="modal-overlay" id="verjaardag-modal-overlay">
+  <div class="modal">
+    <button class="modal-close" id="close-verjaardag-modal">✕</button>
+    <h2>Verjaardag toevoegen</h2>
+    <div class="add-row">
+      <input id="verjaardag-naam-input" type="text" placeholder="Naam">
+    </div>
+    <div class="add-row">
+      <input id="verjaardag-dag-input" type="number" min="1" max="31" placeholder="Dag">
+      <select id="verjaardag-maand-select"></select>
+    </div>
+    <button class="btn-add" id="verjaardag-add-btn" style="margin-top:4px; width:100%;">Toevoegen</button>
+    <div id="verjaardagen-lijst" style="margin-top:12px;"></div>
+  </div>
+</div>
 
 <div class="modal-overlay" id="vaste-modal-overlay">
   <div class="modal">
@@ -222,7 +294,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.2';
+const APP_VERSIE = 'v0.3';
 
 // Vaste, voorgedefinieerde categorieën — volgorde bepaalt sortering.
 // Volgt de looproute door de supermarkt.
@@ -340,9 +412,122 @@ const GezinBoodschappen = (function () {
   return { sortItems, isExpiredIncidenteel, filterSuggestions, findActiveDuplicate, buildInsertPayload, buildUpdatePayload, toggleAction, cleanupExpired, CATEGORIEEN };
 })();
 
+// ---------------------------------------------------------------
+// GezinKalender — pure logica voor de Kalender-tab (kern-agenda +
+// verjaardagen). Herhalende afspraken en de iCal-feed volgen in een
+// latere ronde.
+// ---------------------------------------------------------------
+const GezinKalender = (function () {
+
+  const WIE_OPTIES = ['Ik', 'Mijn vrouw', 'Samen'];
+  const MAAND_NAMEN = [
+    'januari', 'februari', 'maart', 'april', 'mei', 'juni',
+    'juli', 'augustus', 'september', 'oktober', 'november', 'december',
+  ];
+
+  function toIsoDate(d) {
+    // Lokale datum (geen UTC-verschuiving), consistent met de rest van de app.
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function getMonthBounds(year, month) {
+    // month is 0-indexed (zoals JS Date), voor consistentie met de rest.
+    const first = new Date(year, month, 1);
+    const last = new Date(year, month + 1, 0);
+    return { first: toIsoDate(first), last: toIsoDate(last) };
+  }
+
+  function monthLabel(year, month) {
+    return `${MAAND_NAMEN[month]} ${year}`;
+  }
+
+  // Bepaalt vanaf welke datum items getoond worden binnen de bekeken maand:
+  // in de huidige maand tonen we alleen vandaag en later (geen verleden),
+  // in elke andere maand (verleden of toekomst) de hele maand.
+  function getViewStartDate(year, month, today) {
+    const { first } = getMonthBounds(year, month);
+    const isHuidigeMaand = today.getFullYear() === year && today.getMonth() === month;
+    return isHuidigeMaand ? toIsoDate(today) : first;
+  }
+
+  // Berekent de verjaardagsdatum van dit specifieke jaar/maand-paar.
+  // Geeft null als dag/maand niet binnen deze maand vallen.
+  function getBirthdayOccurrencesInMonth(verjaardagen, year, month) {
+    return verjaardagen
+      .filter(v => (v.maand - 1) === month)
+      .map(v => ({
+        type: 'verjaardag',
+        id: v.id,
+        titel: `🎂 ${v.naam}`,
+        datum: toIsoDate(new Date(year, month, v.dag)),
+      }));
+  }
+
+  // Bouwt de volledige, per-dag-gegroepeerde agenda voor de bekeken maand,
+  // gefilterd vanaf de view-startdatum. Volgorde binnen een dag:
+  // verjaardagen (hele dag) -> afspraken zonder tijd -> afspraken met tijd (oplopend).
+  function buildMonthAgenda(afspraken, verjaardagen, year, month, today) {
+    const viewStart = getViewStartDate(year, month, today);
+    const { last } = getMonthBounds(year, month);
+
+    const afspraakItems = afspraken
+      .filter(a => a.datum >= viewStart && a.datum <= last)
+      .map(a => ({ type: 'afspraak', id: a.id, titel: a.titel, datum: a.datum, tijd: a.tijd || null, wie: a.wie }));
+
+    const verjaardagItems = getBirthdayOccurrencesInMonth(verjaardagen, year, month)
+      .filter(v => v.datum >= viewStart);
+
+    const alleItems = [...afspraakItems, ...verjaardagItems];
+
+    const perDag = {};
+    for (const item of alleItems) {
+      if (!perDag[item.datum]) perDag[item.datum] = [];
+      perDag[item.datum].push(item);
+    }
+
+    const dagen = Object.keys(perDag).sort();
+    return dagen.map(datum => {
+      const items = perDag[datum];
+      const verjaardag = items.filter(i => i.type === 'verjaardag');
+      const zonderTijd = items.filter(i => i.type === 'afspraak' && !i.tijd);
+      const metTijd = items.filter(i => i.type === 'afspraak' && i.tijd).sort((a, b) => a.tijd.localeCompare(b.tijd));
+      return { datum, items: [...verjaardag, ...zonderTijd, ...metTijd] };
+    });
+  }
+
+  function buildAfspraakInsertPayload({ titel, datum, tijd, wie }) {
+    if (!titel || !titel.trim()) throw new Error('Titel is verplicht');
+    if (!datum) throw new Error('Datum is verplicht');
+    if (!WIE_OPTIES.includes(wie)) throw new Error('Ongeldige keuze bij "wie"');
+    return {
+      titel: titel.trim(),
+      datum,
+      tijd: tijd && tijd.trim() ? tijd.trim() : null,
+      wie,
+    };
+  }
+
+  function buildVerjaardagInsertPayload({ naam, dag, maand }) {
+    if (!naam || !naam.trim()) throw new Error('Naam is verplicht');
+    const dagNum = Number(dag);
+    const maandNum = Number(maand);
+    if (!Number.isInteger(dagNum) || dagNum < 1 || dagNum > 31) throw new Error('Ongeldige dag');
+    if (!Number.isInteger(maandNum) || maandNum < 1 || maandNum > 12) throw new Error('Ongeldige maand');
+    return { naam: naam.trim(), dag: dagNum, maand: maandNum };
+  }
+
+  return {
+    WIE_OPTIES, MAAND_NAMEN, toIsoDate, getMonthBounds, monthLabel, getViewStartDate,
+    getBirthdayOccurrencesInMonth, buildMonthAgenda, buildAfspraakInsertPayload, buildVerjaardagInsertPayload,
+  };
+})();
+
 // Maak beschikbaar voor de jsdom-testrunner (Node) én de browser.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = GezinBoodschappen;
+  module.exports = { GezinBoodschappen, GezinKalender };
 }
 
 // ---------------------------------------------------------------
@@ -368,6 +553,17 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 
     const versieLabel = document.getElementById('versie-label');
     if (versieLabel) versieLabel.textContent = APP_VERSIE;
+
+    // --- Tab-switching ---
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.disabled) return;
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(sec => { sec.style.display = 'none'; });
+        document.getElementById('tab-content-' + btn.getAttribute('data-tab')).style.display = '';
+      });
+    });
 
     function populateCategorieSelects() {
       for (const sel of [categorieSelect, document.getElementById('vast-categorie-select'), document.getElementById('edit-categorie-select')]) {
@@ -602,6 +798,158 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       });
     }
 
+    // --- Kalender-tab ---
+    let afspraken = [];
+    let verjaardagen = [];
+    const vandaag = new Date();
+    let bekekenJaar = vandaag.getFullYear();
+    let bekekenMaand = vandaag.getMonth(); // 0-indexed
+
+    const maandLabelEl = document.getElementById('maand-label');
+    const agendaLijstEl = document.getElementById('agenda-lijst');
+    const afspraakTitelInput = document.getElementById('afspraak-titel-input');
+    const afspraakDatumInput = document.getElementById('afspraak-datum-input');
+    const afspraakTijdInput = document.getElementById('afspraak-tijd-input');
+    const afspraakWieSelect = document.getElementById('afspraak-wie-select');
+
+    function populateWieSelect() {
+      afspraakWieSelect.innerHTML = GezinKalender.WIE_OPTIES.map(w => `<option value="${w}">${w}</option>`).join('');
+    }
+    populateWieSelect();
+    afspraakDatumInput.value = GezinKalender.toIsoDate(vandaag);
+
+    function populateMaandSelect() {
+      const sel = document.getElementById('verjaardag-maand-select');
+      sel.innerHTML = GezinKalender.MAAND_NAMEN.map((naam, i) => `<option value="${i + 1}">${naam}</option>`).join('');
+    }
+    populateMaandSelect();
+
+    function wieClass(wie) {
+      return 'wie-' + wie.replace(/\s+/g, '-');
+    }
+
+    function renderMaandLabel() {
+      maandLabelEl.textContent = GezinKalender.monthLabel(bekekenJaar, bekekenMaand);
+    }
+
+    function renderAgenda() {
+      renderMaandLabel();
+      const dagen = GezinKalender.buildMonthAgenda(afspraken, verjaardagen, bekekenJaar, bekekenMaand, vandaag);
+      if (dagen.length === 0) {
+        agendaLijstEl.innerHTML = '<div class="empty-state">Geen afspraken deze maand 🎉</div>';
+        return;
+      }
+      agendaLijstEl.innerHTML = dagen.map(dag => `
+        <div class="agenda-dag-groep">
+          <div class="agenda-dag-titel">${formatDagTitel(dag.datum)}</div>
+          ${dag.items.map(item => `
+            <div class="agenda-item ${item.type === 'verjaardag' ? 'verjaardag' : ''}">
+              <span class="tijd">${item.tijd || (item.type === 'verjaardag' ? '🎂' : '')}</span>
+              <span class="titel">${escapeHtml(item.titel)}</span>
+              ${item.type === 'afspraak' ? `<span class="wie-badge ${wieClass(item.wie)}">${escapeHtml(item.wie)}</span>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `).join('');
+    }
+
+    function formatDagTitel(isoDatum) {
+      const [y, m, d] = isoDatum.split('-').map(Number);
+      const date = new Date(y, m - 1, d);
+      const dagNamen = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'];
+      return `${dagNamen[date.getDay()]} ${d} ${GezinKalender.MAAND_NAMEN[m - 1]}`;
+    }
+
+    document.getElementById('maand-vorige').addEventListener('click', () => {
+      bekekenMaand--;
+      if (bekekenMaand < 0) { bekekenMaand = 11; bekekenJaar--; }
+      renderAgenda();
+    });
+    document.getElementById('maand-volgende').addEventListener('click', () => {
+      bekekenMaand++;
+      if (bekekenMaand > 11) { bekekenMaand = 0; bekekenJaar++; }
+      renderAgenda();
+    });
+
+    document.getElementById('afspraak-add-btn').addEventListener('click', async () => {
+      let payload;
+      try {
+        payload = GezinKalender.buildAfspraakInsertPayload({
+          titel: afspraakTitelInput.value,
+          datum: afspraakDatumInput.value,
+          tijd: afspraakTijdInput.value,
+          wie: afspraakWieSelect.value,
+        });
+      } catch (err) {
+        alert(err.message);
+        return;
+      }
+      const { error } = await supabase.from('kalender_afspraken').insert(payload);
+      if (error) { alert('Kon niet toevoegen: ' + error.message); return; }
+      afspraakTitelInput.value = '';
+      afspraakTijdInput.value = '';
+      afspraakDatumInput.value = GezinKalender.toIsoDate(vandaag);
+    });
+
+    // --- Verjaardag-modal ---
+    const verjaardagModalOverlay = document.getElementById('verjaardag-modal-overlay');
+    document.getElementById('open-verjaardag-modal').addEventListener('click', () => {
+      verjaardagModalOverlay.classList.add('open');
+    });
+    document.getElementById('close-verjaardag-modal').addEventListener('click', () => {
+      verjaardagModalOverlay.classList.remove('open');
+    });
+    document.getElementById('verjaardag-add-btn').addEventListener('click', async () => {
+      let payload;
+      try {
+        payload = GezinKalender.buildVerjaardagInsertPayload({
+          naam: document.getElementById('verjaardag-naam-input').value,
+          dag: document.getElementById('verjaardag-dag-input').value,
+          maand: document.getElementById('verjaardag-maand-select').value,
+        });
+      } catch (err) {
+        alert(err.message);
+        return;
+      }
+      const { error } = await supabase.from('kalender_verjaardagen').insert(payload);
+      if (error) { alert('Kon niet toevoegen: ' + error.message); return; }
+      document.getElementById('verjaardag-naam-input').value = '';
+      document.getElementById('verjaardag-dag-input').value = '';
+    });
+
+    function renderVerjaardagenLijst() {
+      const el = document.getElementById('verjaardagen-lijst');
+      const sorted = [...verjaardagen].sort((a, b) => (a.maand - b.maand) || (a.dag - b.dag));
+      el.innerHTML = sorted.map(v => `
+        <div class="vast-item-row" data-id="${v.id}">
+          <span class="naam">${escapeHtml(v.naam)}</span>
+          <span class="cat">${v.dag} ${GezinKalender.MAAND_NAMEN[v.maand - 1]}</span>
+          <button data-action="delete-verjaardag">🗑</button>
+        </div>
+      `).join('');
+      el.querySelectorAll('[data-action="delete-verjaardag"]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const id = e.target.closest('.vast-item-row').getAttribute('data-id');
+          await supabase.from('kalender_verjaardagen').delete().eq('id', id);
+        });
+      });
+    }
+
+    async function loadAfspraken() {
+      const { data, error } = await supabase.from('kalender_afspraken').select('*');
+      if (error) { console.error(error); return; }
+      afspraken = data || [];
+      renderAgenda();
+    }
+
+    async function loadVerjaardagen() {
+      const { data, error } = await supabase.from('kalender_verjaardagen').select('*');
+      if (error) { console.error(error); return; }
+      verjaardagen = data || [];
+      renderVerjaardagenLijst();
+      renderAgenda();
+    }
+
     // --- Realtime ---
     function subscribeRealtime() {
       supabase.channel('boodschappen_items_changes')
@@ -614,6 +962,16 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           loadVasteArtikelen();
         })
         .subscribe();
+      supabase.channel('kalender_afspraken_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'kalender_afspraken' }, () => {
+          loadAfspraken();
+        })
+        .subscribe();
+      supabase.channel('kalender_verjaardagen_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'kalender_verjaardagen' }, () => {
+          loadVerjaardagen();
+        })
+        .subscribe();
     }
 
     // --- Init ---
@@ -622,6 +980,8 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       await loadVasteArtikelen();
       await cleanupExpiredItems();
       await loadItems();
+      await loadAfspraken();
+      await loadVerjaardagen();
       subscribeRealtime();
     })();
   })();
