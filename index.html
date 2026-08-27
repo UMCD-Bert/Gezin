@@ -127,6 +127,13 @@
   .maand-nav-btn { background: none; border: none; font-size: 20px; color: var(--accent); cursor: pointer; padding: 4px 12px; }
   .maand-label { font-weight: 600; font-size: 15px; }
 
+  .verjaardagen-overzicht {
+    background: #fff7e6; border: 1px solid #f3d9a4; border-radius: 10px;
+    padding: 8px 12px; margin-bottom: 12px; font-size: 13px;
+  }
+  .verjaardagen-overzicht .titel { font-weight: 700; margin-bottom: 4px; color: #8a6d1f; }
+  .verjaardagen-overzicht .rij { display: flex; justify-content: space-between; padding: 2px 0; }
+
   .agenda-dag-groep { margin-bottom: 16px; }
   .agenda-dag-titel {
     font-size: 13px; font-weight: 700; color: var(--muted); margin: 0 0 6px 4px;
@@ -230,6 +237,8 @@
       <button id="maand-volgende" class="maand-nav-btn">›</button>
     </div>
 
+    <div id="verjaardagen-overzicht"></div>
+
     <div class="add-bar">
       <div class="add-form">
         <div class="add-row">
@@ -262,6 +271,9 @@
     <div class="add-row">
       <input id="verjaardag-dag-input" type="number" min="1" max="31" placeholder="Dag">
       <select id="verjaardag-maand-select"></select>
+    </div>
+    <div class="add-row">
+      <input id="verjaardag-jaar-input" type="number" min="1900" placeholder="Geboortejaar (optioneel)">
     </div>
     <button class="btn-add" id="verjaardag-add-btn" style="margin-top:4px; width:100%;">Toevoegen</button>
     <div id="verjaardagen-lijst" style="margin-top:12px;"></div>
@@ -305,7 +317,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.4';
+const APP_VERSIE = 'v0.5';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -511,17 +523,37 @@ const GezinKalender = (function () {
     return isHuidigeMaand ? toIsoDate(today) : first;
   }
 
+  function computeLeeftijd(jaar, occurrenceYear) {
+    if (jaar === null || jaar === undefined) return null;
+    return occurrenceYear - jaar;
+  }
+
   // Berekent de verjaardagsdatum van dit specifieke jaar/maand-paar.
   // Geeft null als dag/maand niet binnen deze maand vallen.
   function getBirthdayOccurrencesInMonth(verjaardagen, year, month) {
     return verjaardagen
       .filter(v => (v.maand - 1) === month)
-      .map(v => ({
-        type: 'verjaardag',
-        id: v.id,
-        titel: `🎂 ${v.naam}`,
-        datum: toIsoDate(new Date(year, month, v.dag)),
-      }));
+      .map(v => {
+        const leeftijd = computeLeeftijd(v.jaar, year);
+        return {
+          type: 'verjaardag',
+          id: v.id,
+          naam: v.naam,
+          titel: `🎂 ${v.naam}${leeftijd !== null ? ` (${leeftijd} jaar)` : ''}`,
+          datum: toIsoDate(new Date(year, month, v.dag)),
+          dag: v.dag,
+          jaar: v.jaar || null,
+          leeftijd,
+        };
+      });
+  }
+
+  // Overzicht van ALLE verjaardagen in de bekeken maand, ongeacht viewStart —
+  // dus ook als de dag al is geweest deze maand, in tegenstelling tot de
+  // agenda-lijst zelf (die alleen vandaag-en-later toont).
+  function getBirthdaysOverviewForMonth(verjaardagen, year, month) {
+    return getBirthdayOccurrencesInMonth(verjaardagen, year, month)
+      .sort((a, b) => a.dag - b.dag);
   }
 
   // Bouwt de volledige, per-dag-gegroepeerde agenda voor de bekeken maand,
@@ -571,18 +603,24 @@ const GezinKalender = (function () {
     };
   }
 
-  function buildVerjaardagInsertPayload({ naam, dag, maand }) {
+  function buildVerjaardagInsertPayload({ naam, dag, maand, jaar }) {
     if (!naam || !naam.trim()) throw new Error('Naam is verplicht');
     const dagNum = Number(dag);
     const maandNum = Number(maand);
     if (!Number.isInteger(dagNum) || dagNum < 1 || dagNum > 31) throw new Error('Ongeldige dag');
     if (!Number.isInteger(maandNum) || maandNum < 1 || maandNum > 12) throw new Error('Ongeldige maand');
-    return { naam: naam.trim(), dag: dagNum, maand: maandNum };
+    let jaarNum = null;
+    if (jaar !== null && jaar !== undefined && String(jaar).trim() !== '') {
+      jaarNum = Number(jaar);
+      const huidigJaar = new Date().getFullYear();
+      if (!Number.isInteger(jaarNum) || jaarNum < 1900 || jaarNum > huidigJaar) throw new Error('Ongeldig geboortejaar');
+    }
+    return { naam: naam.trim(), dag: dagNum, maand: maandNum, jaar: jaarNum };
   }
 
   return {
-    BETROKKENEN, MAAND_NAMEN, toIsoDate, getMonthBounds, monthLabel, getViewStartDate,
-    getBirthdayOccurrencesInMonth, buildMonthAgenda, buildAfspraakInsertPayload, buildVerjaardagInsertPayload,
+    BETROKKENEN, MAAND_NAMEN, toIsoDate, getMonthBounds, monthLabel, getViewStartDate, computeLeeftijd,
+    getBirthdayOccurrencesInMonth, getBirthdaysOverviewForMonth, buildMonthAgenda, buildAfspraakInsertPayload, buildVerjaardagInsertPayload,
   };
 })();
 
@@ -922,8 +960,26 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       maandLabelEl.textContent = GezinKalender.monthLabel(bekekenJaar, bekekenMaand);
     }
 
+    function renderVerjaardagenOverzicht() {
+      const el = document.getElementById('verjaardagen-overzicht');
+      const overzicht = GezinKalender.getBirthdaysOverviewForMonth(verjaardagen, bekekenJaar, bekekenMaand);
+      if (overzicht.length === 0) { el.innerHTML = ''; return; }
+      el.innerHTML = `
+        <div class="verjaardagen-overzicht">
+          <div class="titel">🎂 Verjaardagen in ${GezinKalender.MAAND_NAMEN[bekekenMaand]}</div>
+          ${overzicht.map(v => `
+            <div class="rij">
+              <span>${escapeHtml(v.naam)} — ${v.dag} ${GezinKalender.MAAND_NAMEN[bekekenMaand]}</span>
+              <span>${v.leeftijd !== null ? `wordt ${v.leeftijd} jaar` : ''}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
     function renderAgenda() {
       renderMaandLabel();
+      renderVerjaardagenOverzicht();
       const dagen = GezinKalender.buildMonthAgenda(afspraken, verjaardagen, bekekenJaar, bekekenMaand, vandaag);
       if (dagen.length === 0) {
         agendaLijstEl.innerHTML = '<div class="empty-state">Geen afspraken deze maand 🎉</div>';
@@ -997,6 +1053,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           naam: document.getElementById('verjaardag-naam-input').value,
           dag: document.getElementById('verjaardag-dag-input').value,
           maand: document.getElementById('verjaardag-maand-select').value,
+          jaar: document.getElementById('verjaardag-jaar-input').value,
         });
       } catch (err) {
         alert(err.message);
@@ -1006,6 +1063,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       if (error) { alert('Kon niet toevoegen: ' + error.message); return; }
       document.getElementById('verjaardag-naam-input').value = '';
       document.getElementById('verjaardag-dag-input').value = '';
+      document.getElementById('verjaardag-jaar-input').value = '';
     });
 
     function renderVerjaardagenLijst() {
@@ -1014,7 +1072,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       el.innerHTML = sorted.map(v => `
         <div class="vast-item-row" data-id="${v.id}">
           <span class="naam">${escapeHtml(v.naam)}</span>
-          <span class="cat">${v.dag} ${GezinKalender.MAAND_NAMEN[v.maand - 1]}</span>
+          <span class="cat">${v.dag} ${GezinKalender.MAAND_NAMEN[v.maand - 1]}${v.jaar ? ` (${v.jaar})` : ''}</span>
           <button data-action="delete-verjaardag">🗑</button>
         </div>
       `).join('');
