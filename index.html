@@ -138,7 +138,11 @@
   .vast-item-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
   .vast-item-row .naam { flex: 1; font-size: 14px; }
   .vast-item-row .cat { font-size: 12px; color: var(--muted); }
-  .vast-item-row button { background: none; border: none; color: var(--danger); font-size: 18px; cursor: pointer; }
+  .vast-add-to-list-btn {
+    background: var(--accent); color: #fff; border: none; border-radius: 6px;
+    font-size: 12px; padding: 5px 10px; cursor: pointer; white-space: nowrap;
+  }
+  .vast-item-row button[data-action="delete"] { background: none; border: none; color: var(--danger); font-size: 18px; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -218,7 +222,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.1';
+const APP_VERSIE = 'v0.2';
 
 // Vaste, voorgedefinieerde categorieën — volgorde bepaalt sortering.
 // Volgt de looproute door de supermarkt.
@@ -276,6 +280,15 @@ const GezinBoodschappen = (function () {
       .slice(0, 8);
   }
 
+  // Vindt een al-op-de-lijst-staand, nog niet afgevinkt item met (nagenoeg)
+  // dezelfde naam — gebruikt om dubbele invoer te signaleren vóór het
+  // toevoegen, ongeacht of dat gebeurt via vrije tekst of vanuit de vaste lijst.
+  function findActiveDuplicate(items, naam) {
+    const q = (naam || '').trim().toLowerCase();
+    if (!q) return null;
+    return items.find(i => !i.afgevinkt && i.naam.trim().toLowerCase() === q) || null;
+  }
+
   function buildInsertPayload({ naam, detail, categorie, winkel, vastArtikel }) {
     if (!naam || !naam.trim()) throw new Error('Naam is verplicht');
     if (!categorie || !CATEGORIEEN.includes(categorie)) throw new Error('Ongeldige categorie');
@@ -324,7 +337,7 @@ const GezinBoodschappen = (function () {
     return items.filter(i => isExpiredIncidenteel(i, now)).map(i => i.id);
   }
 
-  return { sortItems, isExpiredIncidenteel, filterSuggestions, buildInsertPayload, buildUpdatePayload, toggleAction, cleanupExpired, CATEGORIEEN };
+  return { sortItems, isExpiredIncidenteel, filterSuggestions, findActiveDuplicate, buildInsertPayload, buildUpdatePayload, toggleAction, cleanupExpired, CATEGORIEEN };
 })();
 
 // Maak beschikbaar voor de jsdom-testrunner (Node) én de browser.
@@ -389,6 +402,17 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       if (!e.target.closest('.combo-wrap')) suggestionsBox.style.display = 'none';
     });
 
+    async function insertItem(payload) {
+      const duplicate = GezinBoodschappen.findActiveDuplicate(items, payload.naam);
+      if (duplicate) {
+        const doorgaan = confirm(`"${payload.naam}" staat al op de lijst. Toch nogmaals toevoegen?`);
+        if (!doorgaan) return false;
+      }
+      const { error } = await supabase.from('boodschappen_items').insert(payload);
+      if (error) { alert('Kon niet toevoegen: ' + error.message); return false; }
+      return true;
+    }
+
     async function addItem() {
       let payload;
       try {
@@ -403,8 +427,8 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         alert(err.message);
         return;
       }
-      const { error } = await supabase.from('boodschappen_items').insert(payload);
-      if (error) { alert('Kon niet toevoegen: ' + error.message); return; }
+      const ok = await insertItem(payload);
+      if (!ok) return;
       naamInput.value = '';
       detailInput.value = '';
       winkelInput.value = '';
@@ -553,9 +577,23 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         <div class="vast-item-row" data-id="${v.id}">
           <span class="naam">${escapeHtml(v.naam)}</span>
           <span class="cat">${escapeHtml(v.categorie)}</span>
+          <button class="vast-add-to-list-btn" data-action="add">+ Lijst</button>
           <button data-action="delete">🗑</button>
         </div>
       `).join('');
+      el.querySelectorAll('[data-action="add"]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const id = e.target.closest('.vast-item-row').getAttribute('data-id');
+          const vastArtikel = vasteArtikelen.find(v => String(v.id) === String(id));
+          if (!vastArtikel) return;
+          const payload = GezinBoodschappen.buildInsertPayload({
+            naam: vastArtikel.naam,
+            categorie: vastArtikel.categorie,
+            vastArtikel,
+          });
+          await insertItem(payload);
+        });
+      });
       el.querySelectorAll('[data-action="delete"]').forEach(btn => {
         btn.addEventListener('click', async (e) => {
           const id = e.target.closest('.vast-item-row').getAttribute('data-id');
