@@ -145,6 +145,17 @@
   .wie-Mijn-vrouw { background: #ec4899; }
   .wie-Samen { background: #10b981; }
 
+  .betrokkene-avatar { width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; overflow: hidden; display: inline-flex; }
+  .betrokkene-avatar svg { width: 100%; height: 100%; }
+  .betrokkenen-rij { display: flex; gap: 4px; flex-shrink: 0; }
+  .betrokkenen-kies { display: flex; gap: 8px; flex-wrap: wrap; padding: 4px 0; }
+  .betrokkene-optie {
+    display: flex; align-items: center; gap: 6px; border: 1.5px solid var(--border);
+    border-radius: 100px; padding: 4px 10px 4px 4px; cursor: pointer; font-size: 13px; user-select: none;
+  }
+  .betrokkene-optie.gekozen { border-color: var(--accent); background: #eaf1fe; }
+  .betrokkene-optie input { display: none; }
+
   .vaste-artikelen-link {
     display: block; text-align: center; font-size: 13px; color: var(--accent);
     padding: 14px; cursor: pointer;
@@ -228,9 +239,9 @@
           <input id="afspraak-datum-input" type="date">
           <input id="afspraak-tijd-input" type="time" placeholder="Optioneel">
         </div>
+        <div class="betrokkenen-kies" id="afspraak-betrokkenen-kies"></div>
         <div class="add-row">
-          <select id="afspraak-wie-select"></select>
-          <button class="btn-add" id="afspraak-add-btn" title="Toevoegen">+</button>
+          <button class="btn-add" id="afspraak-add-btn" title="Toevoegen" style="width:100%;">+ Toevoegen</button>
         </div>
       </div>
     </div>
@@ -294,7 +305,49 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.3';
+const APP_VERSIE = 'v0.4';
+
+// Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
+// aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
+// in plaats van foto's, dus zonder externe bestanden.
+const BETROKKENE_ICONEN = {
+  bert: `<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="20" cy="20" r="19" fill="#e8eaed"/>
+    <ellipse cx="20" cy="29" rx="8.5" ry="7" fill="#9aa0a6"/>
+    <ellipse cx="20" cy="21" rx="9" ry="10" fill="#f2c9a0"/>
+    <ellipse cx="20" cy="11" rx="10.5" ry="7" fill="#9aa0a6"/>
+    <circle cx="15" cy="20" r="4" fill="none" stroke="#2b2f33" stroke-width="1.6"/>
+    <circle cx="25" cy="20" r="4" fill="none" stroke="#2b2f33" stroke-width="1.6"/>
+    <line x1="19" y1="20" x2="21" y2="20" stroke="#2b2f33" stroke-width="1.6"/>
+  </svg>`,
+  ellen: `<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="20" cy="20" r="19" fill="#e8eaed"/>
+    <g fill="#3a2b22">
+      <circle cx="10" cy="14" r="4.2"/><circle cx="9" cy="20" r="4"/><circle cx="10.5" cy="26" r="3.6"/>
+      <circle cx="30" cy="14" r="4.2"/><circle cx="31" cy="20" r="4"/><circle cx="29.5" cy="26" r="3.6"/>
+      <circle cx="14" cy="9" r="4.5"/><circle cx="20" cy="7" r="4.8"/><circle cx="26" cy="9" r="4.5"/>
+    </g>
+    <ellipse cx="20" cy="23" rx="9.5" ry="10.5" fill="#f2c9a0"/>
+    <circle cx="15" cy="22" r="3.6" fill="none" stroke="#2b2f33" stroke-width="1.5"/>
+    <circle cx="25" cy="22" r="3.6" fill="none" stroke="#2b2f33" stroke-width="1.5"/>
+    <line x1="18.6" y1="22" x2="21.4" y2="22" stroke="#2b2f33" stroke-width="1.5"/>
+  </svg>`,
+  porsche: `<svg viewBox="0 0 60 34" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="30" cy="30" rx="27" ry="2.5" fill="#000000" fill-opacity="0.1"/>
+    <path d="M4 24 C4 15, 10 9, 17 8 L23 5 C27 3.5, 33 3.5, 37 5 L43 8 C50 9, 56 15, 56 24 L56 25 C56 26.5, 55 27, 53 27 L7 27 C5 27, 4 26.5, 4 25 Z" fill="#9aa0a6"/>
+    <path d="M20 14 L23 6.5 C27 5 33 5 37 6.5 L40 14 Z" fill="#5f6570"/>
+    <circle cx="16" cy="27" r="5" fill="#2b2f33"/><circle cx="16" cy="27" r="2" fill="#c3c7cb"/>
+    <circle cx="44" cy="27" r="5" fill="#2b2f33"/><circle cx="44" cy="27" r="2" fill="#c3c7cb"/>
+  </svg>`,
+  audi: `<svg viewBox="0 0 60 34" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="30" cy="30" rx="27" ry="2.5" fill="#000000" fill-opacity="0.1"/>
+    <path d="M6 25 C6 16, 11 10, 18 9 L20 6 L40 6 L42 9 C49 10, 54 16, 54 25 L54 26 C54 27.3, 53 28 51 28 L9 28 C7 28, 6 27.3, 6 26 Z" fill="#3b6fd6"/>
+    <path d="M18 9 C22 12, 38 12, 42 9" fill="none" stroke="#274e9e" stroke-width="1.6"/>
+    <path d="M15 15 C18 11, 24 9, 30 9 C36 9, 42 11, 45 15 L45 17 L15 17 Z" fill="#274e9e" opacity="0.35"/>
+    <circle cx="17" cy="28" r="5" fill="#2b2f33"/><circle cx="17" cy="28" r="2" fill="#c3c7cb"/>
+    <circle cx="43" cy="28" r="5" fill="#2b2f33"/><circle cx="43" cy="28" r="2" fill="#c3c7cb"/>
+  </svg>`,
+};
 
 // Vaste, voorgedefinieerde categorieën — volgorde bepaalt sortering.
 // Volgt de looproute door de supermarkt.
@@ -419,7 +472,12 @@ const GezinBoodschappen = (function () {
 // ---------------------------------------------------------------
 const GezinKalender = (function () {
 
-  const WIE_OPTIES = ['Ik', 'Mijn vrouw', 'Samen'];
+  const BETROKKENEN = [
+    { key: 'bert', naam: 'Bert', type: 'persoon', kleur: '#3b82f6', icoon: 'bert' },
+    { key: 'ellen', naam: 'Ellen', type: 'persoon', kleur: '#ec4899', icoon: 'ellen' },
+    { key: 'porsche', naam: 'Porsche Taycan', type: 'auto', kleur: '#9aa0a6', icoon: 'porsche' },
+    { key: 'audi', naam: 'Audi S3 Cabriolet', type: 'auto', kleur: '#3b6fd6', icoon: 'audi' },
+  ];
   const MAAND_NAMEN = [
     'januari', 'februari', 'maart', 'april', 'mei', 'juni',
     'juli', 'augustus', 'september', 'oktober', 'november', 'december',
@@ -475,7 +533,7 @@ const GezinKalender = (function () {
 
     const afspraakItems = afspraken
       .filter(a => a.datum >= viewStart && a.datum <= last)
-      .map(a => ({ type: 'afspraak', id: a.id, titel: a.titel, datum: a.datum, tijd: a.tijd || null, wie: a.wie }));
+      .map(a => ({ type: 'afspraak', id: a.id, titel: a.titel, datum: a.datum, tijd: a.tijd || null, betrokkenen: a.betrokkenen || [] }));
 
     const verjaardagItems = getBirthdayOccurrencesInMonth(verjaardagen, year, month)
       .filter(v => v.datum >= viewStart);
@@ -498,15 +556,18 @@ const GezinKalender = (function () {
     });
   }
 
-  function buildAfspraakInsertPayload({ titel, datum, tijd, wie }) {
+  function buildAfspraakInsertPayload({ titel, datum, tijd, betrokkenen }) {
     if (!titel || !titel.trim()) throw new Error('Titel is verplicht');
     if (!datum) throw new Error('Datum is verplicht');
-    if (!WIE_OPTIES.includes(wie)) throw new Error('Ongeldige keuze bij "wie"');
+    const geldigeKeys = BETROKKENEN.map(b => b.key);
+    const gekozen = Array.isArray(betrokkenen) ? betrokkenen : [];
+    if (gekozen.length === 0) throw new Error('Kies minstens één betrokkene');
+    if (!gekozen.every(k => geldigeKeys.includes(k))) throw new Error('Ongeldige betrokkene');
     return {
       titel: titel.trim(),
       datum,
       tijd: tijd && tijd.trim() ? tijd.trim() : null,
-      wie,
+      betrokkenen: gekozen,
     };
   }
 
@@ -520,7 +581,7 @@ const GezinKalender = (function () {
   }
 
   return {
-    WIE_OPTIES, MAAND_NAMEN, toIsoDate, getMonthBounds, monthLabel, getViewStartDate,
+    BETROKKENEN, MAAND_NAMEN, toIsoDate, getMonthBounds, monthLabel, getViewStartDate,
     getBirthdayOccurrencesInMonth, buildMonthAgenda, buildAfspraakInsertPayload, buildVerjaardagInsertPayload,
   };
 })();
@@ -810,12 +871,33 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     const afspraakTitelInput = document.getElementById('afspraak-titel-input');
     const afspraakDatumInput = document.getElementById('afspraak-datum-input');
     const afspraakTijdInput = document.getElementById('afspraak-tijd-input');
-    const afspraakWieSelect = document.getElementById('afspraak-wie-select');
+    const afspraakBetrokkenenKies = document.getElementById('afspraak-betrokkenen-kies');
 
-    function populateWieSelect() {
-      afspraakWieSelect.innerHTML = GezinKalender.WIE_OPTIES.map(w => `<option value="${w}">${w}</option>`).join('');
+    function populateBetrokkenenKies() {
+      afspraakBetrokkenenKies.innerHTML = GezinKalender.BETROKKENEN.map(b => `
+        <label class="betrokkene-optie" data-key="${b.key}">
+          <input type="checkbox" value="${b.key}">
+          <span class="betrokkene-avatar">${BETROKKENE_ICONEN[b.icoon]}</span>
+          ${escapeHtml(b.naam)}
+        </label>
+      `).join('');
+      afspraakBetrokkenenKies.querySelectorAll('.betrokkene-optie').forEach(label => {
+        const checkbox = label.querySelector('input');
+        checkbox.addEventListener('change', () => {
+          label.classList.toggle('gekozen', checkbox.checked);
+        });
+      });
     }
-    populateWieSelect();
+    populateBetrokkenenKies();
+
+    function getGekozenBetrokkenen() {
+      return [...afspraakBetrokkenenKies.querySelectorAll('input:checked')].map(el => el.value);
+    }
+
+    function resetBetrokkenenKies() {
+      afspraakBetrokkenenKies.querySelectorAll('input').forEach(el => { el.checked = false; });
+      afspraakBetrokkenenKies.querySelectorAll('.betrokkene-optie').forEach(el => el.classList.remove('gekozen'));
+    }
     afspraakDatumInput.value = GezinKalender.toIsoDate(vandaag);
 
     function populateMaandSelect() {
@@ -826,6 +908,14 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 
     function wieClass(wie) {
       return 'wie-' + wie.replace(/\s+/g, '-');
+    }
+
+    function renderBetrokkeneBadges(keys) {
+      return `<div class="betrokkenen-rij">${keys.map(key => {
+        const b = GezinKalender.BETROKKENEN.find(x => x.key === key);
+        if (!b) return '';
+        return `<span class="betrokkene-avatar" title="${escapeHtml(b.naam)}">${BETROKKENE_ICONEN[b.icoon]}</span>`;
+      }).join('')}</div>`;
     }
 
     function renderMaandLabel() {
@@ -846,7 +936,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
             <div class="agenda-item ${item.type === 'verjaardag' ? 'verjaardag' : ''}">
               <span class="tijd">${item.tijd || (item.type === 'verjaardag' ? '🎂' : '')}</span>
               <span class="titel">${escapeHtml(item.titel)}</span>
-              ${item.type === 'afspraak' ? `<span class="wie-badge ${wieClass(item.wie)}">${escapeHtml(item.wie)}</span>` : ''}
+              ${item.type === 'afspraak' ? renderBetrokkeneBadges(item.betrokkenen) : ''}
             </div>
           `).join('')}
         </div>
@@ -878,7 +968,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           titel: afspraakTitelInput.value,
           datum: afspraakDatumInput.value,
           tijd: afspraakTijdInput.value,
-          wie: afspraakWieSelect.value,
+          betrokkenen: getGekozenBetrokkenen(),
         });
       } catch (err) {
         alert(err.message);
@@ -889,6 +979,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       afspraakTitelInput.value = '';
       afspraakTijdInput.value = '';
       afspraakDatumInput.value = GezinKalender.toIsoDate(vandaag);
+      resetBetrokkenenKies();
     });
 
     // --- Verjaardag-modal ---
