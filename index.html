@@ -277,6 +277,14 @@
             <input id="afspraak-eindtijd-input" type="time" step="300" placeholder="Eindtijd (optioneel)">
           </div>
           <div class="add-row">
+            <select id="afspraak-herhaal-select">
+              <option value="">Herhaalt niet</option>
+              <option value="wekelijks">Elke week</option>
+              <option value="tweewekelijks">Elke 2 weken</option>
+              <option value="maandelijks">Elke maand</option>
+            </select>
+          </div>
+          <div class="add-row">
             <button class="btn-add" id="afspraak-add-btn" title="Toevoegen" style="width:100%;">+ Toevoegen</button>
           </div>
         </div>
@@ -327,6 +335,10 @@
     <div class="betrokkenen-form-titel">Deelnemers</div>
     <div class="betrokkenen-kies" id="edit-afspraak-betrokkenen-kies"></div>
     <button class="btn-add" id="edit-afspraak-save-btn" style="margin-top:8px; width:100%;">Opslaan</button>
+    <div id="edit-afspraak-reeks-sectie" style="display:none; margin-top:14px; padding-top:12px; border-top:1px solid var(--border);">
+      <div style="font-size:13px; color:var(--muted); margin-bottom:6px;">🔁 Onderdeel van een herhalende reeks</div>
+      <button id="edit-afspraak-stop-reeks-btn" style="background:none; border:1px solid var(--danger); color:var(--danger); border-radius:8px; padding:8px 12px; width:100%; cursor:pointer;">Stop deze reeks vanaf nu</button>
+    </div>
   </div>
 </div>
 
@@ -367,7 +379,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.7.1';
+const APP_VERSIE = 'v0.8';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -623,7 +635,7 @@ const GezinKalender = (function () {
 
     const afspraakItems = afspraken
       .filter(a => a.datum >= first && a.datum <= last)
-      .map(a => ({ type: 'afspraak', id: a.id, titel: a.titel, datum: a.datum, tijd: normalizeTijd(a.tijd), eindtijd: normalizeTijd(a.eindtijd), betrokkenen: a.betrokkenen || [] }));
+      .map(a => ({ type: 'afspraak', id: a.id, titel: a.titel, datum: a.datum, tijd: normalizeTijd(a.tijd), eindtijd: normalizeTijd(a.eindtijd), betrokkenen: a.betrokkenen || [], reeks_id: a.reeks_id || null }));
 
     const verjaardagItems = getBirthdayOccurrencesInMonth(verjaardagen, year, month);
 
@@ -671,6 +683,77 @@ const GezinKalender = (function () {
     return buildAfspraakInsertPayload(velden);
   }
 
+  // -----------------------------------------------------------------
+  // Herhalende afspraken — optie A: elke voorkomen is een eigen, losse rij
+  // in kalender_afspraken (net zo bewerkbaar/verwijderbaar als een eenmalige
+  // afspraak), gegroepeerd via reeks_id. Vooruit gegenereerd tot een horizon,
+  // die stilzwijgend wordt verlengd zodra de app 'm ziet naderen.
+  // -----------------------------------------------------------------
+  const FREQUENTIES = ['wekelijks', 'tweewekelijks', 'maandelijks'];
+  const HORIZON_MAANDEN = 12;
+  const VERLENG_DREMPEL_MAANDEN = 2;
+
+  function berekenVolgendeDatum(datumIso, frequentie) {
+    const [y, m, d] = datumIso.split('-').map(Number);
+    if (frequentie === 'wekelijks') {
+      const datum = new Date(y, m - 1, d);
+      datum.setDate(datum.getDate() + 7);
+      return toIsoDate(datum);
+    }
+    if (frequentie === 'tweewekelijks') {
+      const datum = new Date(y, m - 1, d);
+      datum.setDate(datum.getDate() + 14);
+      return toIsoDate(datum);
+    }
+    if (frequentie === 'maandelijks') {
+      // Ga via de 1e van de volgende maand om JS's automatische dag-overflow
+      // te vermijden (anders wordt "31 januari + 1 maand" stilzwijgend "3 maart").
+      // Klem de streefdag af op de laatste dag van de doelmaand (bijv. 31 jan -> 28/29 feb).
+      const datum = new Date(y, m - 1, 1);
+      datum.setMonth(datum.getMonth() + 1);
+      const laatsteDagVolgendeMaand = new Date(datum.getFullYear(), datum.getMonth() + 1, 0).getDate();
+      datum.setDate(Math.min(d, laatsteDagVolgendeMaand));
+      return toIsoDate(datum);
+    }
+    throw new Error('Ongeldige frequentie');
+  }
+
+  // Genereert alle voorkomens vanaf (en inclusief) startDatum tot en met totDatum.
+  function genereerReeksData(startDatumIso, frequentie, totDatumIso) {
+    const data = [];
+    let huidige = startDatumIso;
+    while (huidige <= totDatumIso) {
+      data.push(huidige);
+      huidige = berekenVolgendeDatum(huidige, frequentie);
+    }
+    return data;
+  }
+
+  function berekenNieuweHorizon(vandaag, maanden = HORIZON_MAANDEN) {
+    const horizon = new Date(vandaag.getFullYear(), vandaag.getMonth(), vandaag.getDate());
+    horizon.setMonth(horizon.getMonth() + maanden);
+    return toIsoDate(horizon);
+  }
+
+  // Bepaalt of een reeks stilzwijgend verlengd moet worden — waar als de
+  // gegenereerde horizon minder dan VERLENG_DREMPEL_MAANDEN vooruit reikt.
+  function moetReeksVerlengdWorden(gegenereerdTotIso, vandaag, drempelMaanden = VERLENG_DREMPEL_MAANDEN) {
+    const drempelDatum = new Date(vandaag.getFullYear(), vandaag.getMonth(), vandaag.getDate());
+    drempelDatum.setMonth(drempelDatum.getMonth() + drempelMaanden);
+    return gegenereerdTotIso < toIsoDate(drempelDatum);
+  }
+
+  function buildReeksInsertPayload({ frequentie, startDatum, vandaag }) {
+    if (!FREQUENTIES.includes(frequentie)) throw new Error('Ongeldige frequentie');
+    if (!startDatum) throw new Error('Startdatum is verplicht');
+    const horizon = berekenNieuweHorizon(vandaag);
+    const datums = genereerReeksData(startDatum, frequentie, horizon);
+    return {
+      reeksPayload: { frequentie, gegenereerd_tot: horizon, gestopt_op: null },
+      datums,
+    };
+  }
+
   function buildVerjaardagInsertPayload({ naam, dag, maand, jaar }) {
     if (!naam || !naam.trim()) throw new Error('Naam is verplicht');
     const dagNum = Number(dag);
@@ -687,8 +770,9 @@ const GezinKalender = (function () {
   }
 
   return {
-    BETROKKENEN, MAAND_NAMEN, toIsoDate, getMonthBounds, monthLabel, getViewStartDate, computeLeeftijd, normalizeTijd,
+    BETROKKENEN, MAAND_NAMEN, FREQUENTIES, toIsoDate, getMonthBounds, monthLabel, getViewStartDate, computeLeeftijd, normalizeTijd,
     getBirthdayOccurrencesInMonth, getBirthdaysOverviewForMonth, buildMonthAgenda, buildAfspraakInsertPayload, buildAfspraakUpdatePayload, buildVerjaardagInsertPayload,
+    berekenVolgendeDatum, genereerReeksData, berekenNieuweHorizon, moetReeksVerlengdWorden, buildReeksInsertPayload,
   };
 })();
 
@@ -1078,7 +1162,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           ${dag.items.map(item => `
             <div class="agenda-item ${item.type === 'verjaardag' ? 'verjaardag' : ''}" ${item.type === 'afspraak' ? `data-id="${item.id}"` : ''}>
               <span class="tijd">${formatTijdWeergave(item)}</span>
-              <span class="titel">${escapeHtml(item.titel)}</span>
+              <span class="titel">${item.type === 'afspraak' && item.reeks_id ? '🔁 ' : ''}${escapeHtml(item.titel)}</span>
               ${item.type === 'afspraak' ? renderBetrokkeneBadges(item.betrokkenen) : ''}
               ${item.type === 'afspraak' ? `<button class="edit-btn" data-role="edit-afspraak" title="Bewerken">✏️</button>` : ''}
             </div>
@@ -1133,29 +1217,56 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         alert(err.message);
         return;
       }
-      const { error } = await supabase.from('kalender_afspraken').insert(payload);
-      if (error) { alert('Kon niet toevoegen: ' + error.message); return; }
+      const frequentie = document.getElementById('afspraak-herhaal-select').value;
+
+      if (!frequentie) {
+        // Eenmalige afspraak — ongewijzigd gedrag.
+        const { error } = await supabase.from('kalender_afspraken').insert(payload);
+        if (error) { alert('Kon niet toevoegen: ' + error.message); return; }
+      } else {
+        // Herhalende afspraak (optie A): eerst de reeks aanmaken, dan elke
+        // voorkomen als eigen, losse rij wegschrijven met reeks_id erbij.
+        let reeksData;
+        try {
+          reeksData = GezinKalender.buildReeksInsertPayload({ frequentie, startDatum: payload.datum, vandaag });
+        } catch (err) {
+          alert(err.message);
+          return;
+        }
+        const { data: reeksRows, error: reeksError } = await supabase.from('kalender_reeksen').insert(reeksData.reeksPayload).select();
+        if (reeksError) { alert('Kon de reeks niet aanmaken: ' + reeksError.message); return; }
+        const reeksId = reeksRows[0].id;
+        const rijen = reeksData.datums.map(datum => ({ ...payload, datum, reeks_id: reeksId }));
+        const { error: rijenError } = await supabase.from('kalender_afspraken').insert(rijen);
+        if (rijenError) { alert('Kon de reeks niet toevoegen: ' + rijenError.message); return; }
+      }
+
       afspraakTitelInput.value = '';
       afspraakTijdInput.value = '';
       afspraakEindtijdInput.value = '';
       afspraakDatumInput.value = GezinKalender.toIsoDate(vandaag);
+      document.getElementById('afspraak-herhaal-select').value = '';
       afspraakBetrokkenenKies.reset();
     });
 
     // --- Afspraak bewerken ---
     const afspraakEditModalOverlay = document.getElementById('afspraak-edit-modal-overlay');
+    let editingAfspraakReeksId = null;
     function openAfspraakEditModal(afspraak) {
       editingAfspraakId = afspraak.id;
+      editingAfspraakReeksId = afspraak.reeks_id || null;
       document.getElementById('edit-afspraak-titel-input').value = afspraak.titel;
       document.getElementById('edit-afspraak-datum-input').value = afspraak.datum;
       document.getElementById('edit-afspraak-tijd-input').value = afspraak.tijd || '';
       document.getElementById('edit-afspraak-eindtijd-input').value = afspraak.eindtijd || '';
       editBetrokkenenKies.setGekozen(afspraak.betrokkenen || []);
+      document.getElementById('edit-afspraak-reeks-sectie').style.display = editingAfspraakReeksId ? '' : 'none';
       afspraakEditModalOverlay.classList.add('open');
     }
     document.getElementById('close-afspraak-edit-modal').addEventListener('click', () => {
       afspraakEditModalOverlay.classList.remove('open');
       editingAfspraakId = null;
+      editingAfspraakReeksId = null;
     });
     document.getElementById('edit-afspraak-save-btn').addEventListener('click', async () => {
       if (editingAfspraakId == null) return;
@@ -1176,6 +1287,21 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       if (error) { alert('Kon niet opslaan: ' + error.message); return; }
       afspraakEditModalOverlay.classList.remove('open');
       editingAfspraakId = null;
+      editingAfspraakReeksId = null;
+    });
+    document.getElementById('edit-afspraak-stop-reeks-btn').addEventListener('click', async () => {
+      if (!editingAfspraakReeksId) return;
+      if (!confirm('Deze reeks stoppen? Toekomstige voorkomens (vanaf vandaag) worden verwijderd. Al geweest zijnde voorkomens blijven staan.')) return;
+      const vandaagIso = GezinKalender.toIsoDate(vandaag);
+      const { error: deleteError } = await supabase.from('kalender_afspraken')
+        .delete().eq('reeks_id', editingAfspraakReeksId).gte('datum', vandaagIso);
+      if (deleteError) { alert('Kon de reeks niet stoppen: ' + deleteError.message); return; }
+      const { error: stopError } = await supabase.from('kalender_reeksen')
+        .update({ gestopt_op: vandaagIso }).eq('id', editingAfspraakReeksId);
+      if (stopError) { alert('Kon de reeks niet volledig afsluiten: ' + stopError.message); return; }
+      afspraakEditModalOverlay.classList.remove('open');
+      editingAfspraakId = null;
+      editingAfspraakReeksId = null;
     });
 
     // --- Verjaardag-modal ---
@@ -1260,12 +1386,40 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         .subscribe();
     }
 
+    // Verlengt elke actieve reeks stilzwijgend zodra de horizon minder dan
+    // VERLENG_DREMPEL_MAANDEN vooruit reikt — draait bij elke app-start.
+    async function verlengActieveReeksen() {
+      const { data: reeksen, error } = await supabase.from('kalender_reeksen').select('*').is('gestopt_op', null);
+      if (error) { console.error(error); return; }
+      for (const reeks of (reeksen || [])) {
+        if (!GezinKalender.moetReeksVerlengdWorden(reeks.gegenereerd_tot, vandaag)) continue;
+        const startDatum = GezinKalender.berekenVolgendeDatum(reeks.gegenereerd_tot, reeks.frequentie);
+        const nieuweHorizon = GezinKalender.berekenNieuweHorizon(vandaag);
+        const nieuweDatums = GezinKalender.genereerReeksData(startDatum, reeks.frequentie, nieuweHorizon);
+        if (nieuweDatums.length === 0) continue;
+        // Basis-gegevens (titel/tijd/eindtijd/betrokkenen) overnemen van het laatst
+        // bekende voorkomen in deze reeks — die zijn voor elk voorkomen gelijk,
+        // behalve als iemand een los voorkomen heeft bewerkt (dat raakt de reeks niet).
+        const { data: laatsteRij } = await supabase.from('kalender_afspraken')
+          .select('*').eq('reeks_id', reeks.id).order('datum', { ascending: false }).limit(1);
+        if (!laatsteRij || laatsteRij.length === 0) continue;
+        const basis = laatsteRij[0];
+        const nieuweRijen = nieuweDatums.map(datum => ({
+          titel: basis.titel, tijd: basis.tijd, eindtijd: basis.eindtijd, betrokkenen: basis.betrokkenen,
+          datum, reeks_id: reeks.id,
+        }));
+        await supabase.from('kalender_afspraken').insert(nieuweRijen);
+        await supabase.from('kalender_reeksen').update({ gegenereerd_tot: nieuweHorizon }).eq('id', reeks.id);
+      }
+    }
+
     // --- Init ---
     (async function init() {
       if (!supabase) { console.error('Supabase-client kon niet worden aangemaakt.'); return; }
       await loadVasteArtikelen();
       await cleanupExpiredItems();
       await loadItems();
+      await verlengActieveReeksen();
       await loadAfspraken();
       await loadVerjaardagen();
       subscribeRealtime();
