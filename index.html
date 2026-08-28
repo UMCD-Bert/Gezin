@@ -131,8 +131,24 @@
     background: #fff7e6; border: 1px solid #f3d9a4; border-radius: 10px;
     padding: 8px 12px; margin-bottom: 12px; font-size: 13px;
   }
-  .verjaardagen-overzicht .titel { font-weight: 700; margin-bottom: 4px; color: #8a6d1f; }
+  .verjaardagen-overzicht .titel-rij { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .verjaardagen-overzicht .titel { font-weight: 700; color: #8a6d1f; }
   .verjaardagen-overzicht .rij { display: flex; justify-content: space-between; padding: 2px 0; }
+  .verjaardag-add-icon-btn {
+    background: none; border: none; font-size: 18px; cursor: pointer; line-height: 1; position: relative;
+  }
+  .verjaardag-add-icon-btn .plus-badge {
+    position: absolute; bottom: -2px; right: -4px; background: var(--accent); color: #fff;
+    border-radius: 50%; width: 13px; height: 13px; font-size: 11px; line-height: 13px; font-weight: 700;
+  }
+
+  .afspraak-form-rij { display: flex; gap: 10px; flex-direction: column; }
+  @media (min-width: 640px) {
+    .afspraak-form-rij { flex-direction: row; align-items: flex-start; }
+    .afspraak-form-rij .add-form:first-child { flex: 1.3; }
+    .afspraak-form-rij .betrokkenen-form { flex: 1; }
+  }
+  .betrokkenen-form-titel { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
 
   .agenda-dag-groep { margin-bottom: 16px; }
   .agenda-dag-titel {
@@ -145,6 +161,7 @@
   .agenda-item .tijd { font-size: 13px; color: var(--muted); min-width: 42px; }
   .agenda-item .titel { flex: 1; font-size: 15px; }
   .agenda-item.verjaardag { background: #fff7e6; }
+  .agenda-item .edit-btn { flex-shrink: 0; }
   .wie-badge {
     font-size: 11px; border-radius: 100px; padding: 2px 8px; white-space: nowrap; color: #fff;
   }
@@ -240,24 +257,30 @@
     <div id="verjaardagen-overzicht"></div>
 
     <div class="add-bar">
-      <div class="add-form">
-        <div class="add-row">
-          <input id="afspraak-titel-input" type="text" placeholder="Titel afspraak">
+      <div class="afspraak-form-rij">
+        <div class="add-form">
+          <div class="add-row">
+            <input id="afspraak-titel-input" type="text" placeholder="Titel afspraak">
+          </div>
+          <div class="add-row">
+            <input id="afspraak-datum-input" type="date">
+          </div>
+          <div class="add-row">
+            <input id="afspraak-tijd-input" type="time" step="300" placeholder="Starttijd (optioneel)">
+            <input id="afspraak-eindtijd-input" type="time" step="300" placeholder="Eindtijd (optioneel)">
+          </div>
+          <div class="add-row">
+            <button class="btn-add" id="afspraak-add-btn" title="Toevoegen" style="width:100%;">+ Toevoegen</button>
+          </div>
         </div>
-        <div class="add-row">
-          <input id="afspraak-datum-input" type="date">
-          <input id="afspraak-tijd-input" type="time" placeholder="Optioneel">
-        </div>
-        <div class="betrokkenen-kies" id="afspraak-betrokkenen-kies"></div>
-        <div class="add-row">
-          <button class="btn-add" id="afspraak-add-btn" title="Toevoegen" style="width:100%;">+ Toevoegen</button>
+        <div class="add-form betrokkenen-form">
+          <div class="betrokkenen-form-titel">Deelnemers</div>
+          <div class="betrokkenen-kies" id="afspraak-betrokkenen-kies"></div>
         </div>
       </div>
     </div>
 
     <div id="agenda-lijst"></div>
-
-    <div class="vaste-artikelen-link" id="open-verjaardag-modal">🎂 Verjaardag toevoegen</div>
   </section>
 </main>
 
@@ -277,6 +300,26 @@
     </div>
     <button class="btn-add" id="verjaardag-add-btn" style="margin-top:4px; width:100%;">Toevoegen</button>
     <div id="verjaardagen-lijst" style="margin-top:12px;"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="afspraak-edit-modal-overlay">
+  <div class="modal">
+    <button class="modal-close" id="close-afspraak-edit-modal">✕</button>
+    <h2>Afspraak bewerken</h2>
+    <div class="add-row">
+      <input id="edit-afspraak-titel-input" type="text" placeholder="Titel afspraak">
+    </div>
+    <div class="add-row">
+      <input id="edit-afspraak-datum-input" type="date">
+    </div>
+    <div class="add-row">
+      <input id="edit-afspraak-tijd-input" type="time" step="300" placeholder="Starttijd (optioneel)">
+      <input id="edit-afspraak-eindtijd-input" type="time" step="300" placeholder="Eindtijd (optioneel)">
+    </div>
+    <div class="betrokkenen-form-titel">Deelnemers</div>
+    <div class="betrokkenen-kies" id="edit-afspraak-betrokkenen-kies"></div>
+    <button class="btn-add" id="edit-afspraak-save-btn" style="margin-top:8px; width:100%;">Opslaan</button>
   </div>
 </div>
 
@@ -317,7 +360,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.5';
+const APP_VERSIE = 'v0.6';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -487,8 +530,8 @@ const GezinKalender = (function () {
   const BETROKKENEN = [
     { key: 'bert', naam: 'Bert', type: 'persoon', kleur: '#3b82f6', icoon: 'bert' },
     { key: 'ellen', naam: 'Ellen', type: 'persoon', kleur: '#ec4899', icoon: 'ellen' },
-    { key: 'porsche', naam: 'Porsche Taycan', type: 'auto', kleur: '#9aa0a6', icoon: 'porsche' },
-    { key: 'audi', naam: 'Audi S3 Cabriolet', type: 'auto', kleur: '#3b6fd6', icoon: 'audi' },
+    { key: 'porsche', naam: 'Porsche', type: 'auto', kleur: '#9aa0a6', icoon: 'porsche' },
+    { key: 'audi', naam: 'Audi', type: 'auto', kleur: '#3b6fd6', icoon: 'audi' },
   ];
   const MAAND_NAMEN = [
     'januari', 'februari', 'maart', 'april', 'mei', 'juni',
@@ -565,7 +608,7 @@ const GezinKalender = (function () {
 
     const afspraakItems = afspraken
       .filter(a => a.datum >= viewStart && a.datum <= last)
-      .map(a => ({ type: 'afspraak', id: a.id, titel: a.titel, datum: a.datum, tijd: a.tijd || null, betrokkenen: a.betrokkenen || [] }));
+      .map(a => ({ type: 'afspraak', id: a.id, titel: a.titel, datum: a.datum, tijd: a.tijd || null, eindtijd: a.eindtijd || null, betrokkenen: a.betrokkenen || [] }));
 
     const verjaardagItems = getBirthdayOccurrencesInMonth(verjaardagen, year, month)
       .filter(v => v.datum >= viewStart);
@@ -588,19 +631,30 @@ const GezinKalender = (function () {
     });
   }
 
-  function buildAfspraakInsertPayload({ titel, datum, tijd, betrokkenen }) {
+  function buildAfspraakInsertPayload({ titel, datum, tijd, eindtijd, betrokkenen }) {
     if (!titel || !titel.trim()) throw new Error('Titel is verplicht');
     if (!datum) throw new Error('Datum is verplicht');
     const geldigeKeys = BETROKKENEN.map(b => b.key);
     const gekozen = Array.isArray(betrokkenen) ? betrokkenen : [];
     if (gekozen.length === 0) throw new Error('Kies minstens één betrokkene');
     if (!gekozen.every(k => geldigeKeys.includes(k))) throw new Error('Ongeldige betrokkene');
+    const tijdWaarde = tijd && tijd.trim() ? tijd.trim() : null;
+    const eindtijdWaarde = eindtijd && eindtijd.trim() ? eindtijd.trim() : null;
+    if (eindtijdWaarde && !tijdWaarde) throw new Error('Eindtijd kan alleen samen met een starttijd');
+    if (eindtijdWaarde && tijdWaarde && eindtijdWaarde <= tijdWaarde) throw new Error('Eindtijd moet na de starttijd liggen');
     return {
       titel: titel.trim(),
       datum,
-      tijd: tijd && tijd.trim() ? tijd.trim() : null,
+      tijd: tijdWaarde,
+      eindtijd: eindtijdWaarde,
       betrokkenen: gekozen,
     };
+  }
+
+  // Bewerken deelt dezelfde validatieregels als toevoegen — enige verschil
+  // is dat dit een bestaande rij bijwerkt, geen nieuwe aanmaakt.
+  function buildAfspraakUpdatePayload(velden) {
+    return buildAfspraakInsertPayload(velden);
   }
 
   function buildVerjaardagInsertPayload({ naam, dag, maand, jaar }) {
@@ -620,7 +674,7 @@ const GezinKalender = (function () {
 
   return {
     BETROKKENEN, MAAND_NAMEN, toIsoDate, getMonthBounds, monthLabel, getViewStartDate, computeLeeftijd,
-    getBirthdayOccurrencesInMonth, getBirthdaysOverviewForMonth, buildMonthAgenda, buildAfspraakInsertPayload, buildVerjaardagInsertPayload,
+    getBirthdayOccurrencesInMonth, getBirthdaysOverviewForMonth, buildMonthAgenda, buildAfspraakInsertPayload, buildAfspraakUpdatePayload, buildVerjaardagInsertPayload,
   };
 })();
 
@@ -909,33 +963,43 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     const afspraakTitelInput = document.getElementById('afspraak-titel-input');
     const afspraakDatumInput = document.getElementById('afspraak-datum-input');
     const afspraakTijdInput = document.getElementById('afspraak-tijd-input');
-    const afspraakBetrokkenenKies = document.getElementById('afspraak-betrokkenen-kies');
+    const afspraakEindtijdInput = document.getElementById('afspraak-eindtijd-input');
 
-    function populateBetrokkenenKies() {
-      afspraakBetrokkenenKies.innerHTML = GezinKalender.BETROKKENEN.map(b => `
+    // Herbruikbare "betrokkenen aanvinken"-component — gebruikt door zowel
+    // het toevoegformulier als het bewerk-modal, die elk hun eigen DOM-container
+    // hebben (bewust dubbel: twee schermen delen geen enkel DOM-element).
+    function maakBetrokkenenKies(containerEl) {
+      containerEl.innerHTML = GezinKalender.BETROKKENEN.map(b => `
         <label class="betrokkene-optie" data-key="${b.key}">
           <input type="checkbox" value="${b.key}">
           <span class="betrokkene-avatar">${BETROKKENE_ICONEN[b.icoon]}</span>
           ${escapeHtml(b.naam)}
         </label>
       `).join('');
-      afspraakBetrokkenenKies.querySelectorAll('.betrokkene-optie').forEach(label => {
+      containerEl.querySelectorAll('.betrokkene-optie').forEach(label => {
         const checkbox = label.querySelector('input');
         checkbox.addEventListener('change', () => {
           label.classList.toggle('gekozen', checkbox.checked);
         });
       });
+      return {
+        getGekozen: () => [...containerEl.querySelectorAll('input:checked')].map(el => el.value),
+        setGekozen: (keys) => {
+          containerEl.querySelectorAll('input').forEach(el => {
+            el.checked = keys.includes(el.value);
+            el.closest('.betrokkene-optie').classList.toggle('gekozen', el.checked);
+          });
+        },
+        reset: () => {
+          containerEl.querySelectorAll('input').forEach(el => { el.checked = false; });
+          containerEl.querySelectorAll('.betrokkene-optie').forEach(el => el.classList.remove('gekozen'));
+        },
+      };
     }
-    populateBetrokkenenKies();
 
-    function getGekozenBetrokkenen() {
-      return [...afspraakBetrokkenenKies.querySelectorAll('input:checked')].map(el => el.value);
-    }
+    const afspraakBetrokkenenKies = maakBetrokkenenKies(document.getElementById('afspraak-betrokkenen-kies'));
+    const editBetrokkenenKies = maakBetrokkenenKies(document.getElementById('edit-afspraak-betrokkenen-kies'));
 
-    function resetBetrokkenenKies() {
-      afspraakBetrokkenenKies.querySelectorAll('input').forEach(el => { el.checked = false; });
-      afspraakBetrokkenenKies.querySelectorAll('.betrokkene-optie').forEach(el => el.classList.remove('gekozen'));
-    }
     afspraakDatumInput.value = GezinKalender.toIsoDate(vandaag);
 
     function populateMaandSelect() {
@@ -943,10 +1007,6 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       sel.innerHTML = GezinKalender.MAAND_NAMEN.map((naam, i) => `<option value="${i + 1}">${naam}</option>`).join('');
     }
     populateMaandSelect();
-
-    function wieClass(wie) {
-      return 'wie-' + wie.replace(/\s+/g, '-');
-    }
 
     function renderBetrokkeneBadges(keys) {
       return `<div class="betrokkenen-rij">${keys.map(key => {
@@ -956,6 +1016,12 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       }).join('')}</div>`;
     }
 
+    function formatTijdWeergave(item) {
+      if (item.type === 'verjaardag') return '🎂';
+      if (!item.tijd) return '';
+      return item.eindtijd ? `${item.tijd} - ${item.eindtijd}` : item.tijd;
+    }
+
     function renderMaandLabel() {
       maandLabelEl.textContent = GezinKalender.monthLabel(bekekenJaar, bekekenMaand);
     }
@@ -963,11 +1029,13 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     function renderVerjaardagenOverzicht() {
       const el = document.getElementById('verjaardagen-overzicht');
       const overzicht = GezinKalender.getBirthdaysOverviewForMonth(verjaardagen, bekekenJaar, bekekenMaand);
-      if (overzicht.length === 0) { el.innerHTML = ''; return; }
       el.innerHTML = `
         <div class="verjaardagen-overzicht">
-          <div class="titel">🎂 Verjaardagen in ${GezinKalender.MAAND_NAMEN[bekekenMaand]}</div>
-          ${overzicht.map(v => `
+          <div class="titel-rij">
+            <span class="titel">🎂 Verjaardagen in ${GezinKalender.MAAND_NAMEN[bekekenMaand]}</span>
+            <button class="verjaardag-add-icon-btn" id="open-verjaardag-modal" title="Verjaardag toevoegen">🎂<span class="plus-badge">+</span></button>
+          </div>
+          ${overzicht.length === 0 ? '<div style="color:var(--muted);">Geen verjaardagen deze maand</div>' : overzicht.map(v => `
             <div class="rij">
               <span>${escapeHtml(v.naam)} — ${v.dag} ${GezinKalender.MAAND_NAMEN[bekekenMaand]}</span>
               <span>${v.leeftijd !== null ? `wordt ${v.leeftijd} jaar` : ''}</span>
@@ -975,7 +1043,13 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           `).join('')}
         </div>
       `;
+      // Knop wordt elke render opnieuw aangemaakt (innerHTML), dus listener elke keer opnieuw koppelen.
+      document.getElementById('open-verjaardag-modal').addEventListener('click', () => {
+        document.getElementById('verjaardag-modal-overlay').classList.add('open');
+      });
     }
+
+    let editingAfspraakId = null;
 
     function renderAgenda() {
       renderMaandLabel();
@@ -989,15 +1063,25 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         <div class="agenda-dag-groep">
           <div class="agenda-dag-titel">${formatDagTitel(dag.datum)}</div>
           ${dag.items.map(item => `
-            <div class="agenda-item ${item.type === 'verjaardag' ? 'verjaardag' : ''}">
-              <span class="tijd">${item.tijd || (item.type === 'verjaardag' ? '🎂' : '')}</span>
+            <div class="agenda-item ${item.type === 'verjaardag' ? 'verjaardag' : ''}" ${item.type === 'afspraak' ? `data-id="${item.id}"` : ''}>
+              <span class="tijd">${formatTijdWeergave(item)}</span>
               <span class="titel">${escapeHtml(item.titel)}</span>
               ${item.type === 'afspraak' ? renderBetrokkeneBadges(item.betrokkenen) : ''}
+              ${item.type === 'afspraak' ? `<button class="edit-btn" data-role="edit-afspraak" title="Bewerken">✏️</button>` : ''}
             </div>
           `).join('')}
         </div>
       `).join('');
+
+      agendaLijstEl.querySelectorAll('[data-role="edit-afspraak"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.closest('.agenda-item').getAttribute('data-id');
+          const afspraak = afspraken.find(a => String(a.id) === String(id));
+          if (afspraak) openAfspraakEditModal(afspraak);
+        });
+      });
     }
+
 
     function formatDagTitel(isoDatum) {
       const [y, m, d] = isoDatum.split('-').map(Number);
@@ -1024,7 +1108,8 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           titel: afspraakTitelInput.value,
           datum: afspraakDatumInput.value,
           tijd: afspraakTijdInput.value,
-          betrokkenen: getGekozenBetrokkenen(),
+          eindtijd: afspraakEindtijdInput.value,
+          betrokkenen: afspraakBetrokkenenKies.getGekozen(),
         });
       } catch (err) {
         alert(err.message);
@@ -1034,17 +1119,51 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       if (error) { alert('Kon niet toevoegen: ' + error.message); return; }
       afspraakTitelInput.value = '';
       afspraakTijdInput.value = '';
+      afspraakEindtijdInput.value = '';
       afspraakDatumInput.value = GezinKalender.toIsoDate(vandaag);
-      resetBetrokkenenKies();
+      afspraakBetrokkenenKies.reset();
+    });
+
+    // --- Afspraak bewerken ---
+    const afspraakEditModalOverlay = document.getElementById('afspraak-edit-modal-overlay');
+    function openAfspraakEditModal(afspraak) {
+      editingAfspraakId = afspraak.id;
+      document.getElementById('edit-afspraak-titel-input').value = afspraak.titel;
+      document.getElementById('edit-afspraak-datum-input').value = afspraak.datum;
+      document.getElementById('edit-afspraak-tijd-input').value = afspraak.tijd || '';
+      document.getElementById('edit-afspraak-eindtijd-input').value = afspraak.eindtijd || '';
+      editBetrokkenenKies.setGekozen(afspraak.betrokkenen || []);
+      afspraakEditModalOverlay.classList.add('open');
+    }
+    document.getElementById('close-afspraak-edit-modal').addEventListener('click', () => {
+      afspraakEditModalOverlay.classList.remove('open');
+      editingAfspraakId = null;
+    });
+    document.getElementById('edit-afspraak-save-btn').addEventListener('click', async () => {
+      if (editingAfspraakId == null) return;
+      let payload;
+      try {
+        payload = GezinKalender.buildAfspraakUpdatePayload({
+          titel: document.getElementById('edit-afspraak-titel-input').value,
+          datum: document.getElementById('edit-afspraak-datum-input').value,
+          tijd: document.getElementById('edit-afspraak-tijd-input').value,
+          eindtijd: document.getElementById('edit-afspraak-eindtijd-input').value,
+          betrokkenen: editBetrokkenenKies.getGekozen(),
+        });
+      } catch (err) {
+        alert(err.message);
+        return;
+      }
+      const { error } = await supabase.from('kalender_afspraken').update(payload).eq('id', editingAfspraakId);
+      if (error) { alert('Kon niet opslaan: ' + error.message); return; }
+      afspraakEditModalOverlay.classList.remove('open');
+      editingAfspraakId = null;
     });
 
     // --- Verjaardag-modal ---
-    const verjaardagModalOverlay = document.getElementById('verjaardag-modal-overlay');
-    document.getElementById('open-verjaardag-modal').addEventListener('click', () => {
-      verjaardagModalOverlay.classList.add('open');
-    });
+    // (De open-knop wordt dynamisch aangemaakt in renderVerjaardagenOverzicht en koppelt daar zijn eigen listener.)
     document.getElementById('close-verjaardag-modal').addEventListener('click', () => {
-      verjaardagModalOverlay.classList.remove('open');
+      document.getElementById('verjaardag-modal-overlay').classList.remove('open');
     });
     document.getElementById('verjaardag-add-btn').addEventListener('click', async () => {
       let payload;
