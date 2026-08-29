@@ -191,6 +191,21 @@
     padding: 14px; cursor: pointer;
   }
 
+  .fab-add-btn {
+    position: fixed; bottom: 24px; right: 20px; z-index: 15;
+    width: 52px; height: 52px; border-radius: 50%; border: none;
+    background: var(--accent); color: #fff; font-size: 26px; line-height: 1;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.25); cursor: pointer;
+  }
+
+  .betrokkenen-filter-rij { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .betrokkene-filter-chip {
+    display: flex; align-items: center; gap: 6px; border: 1.5px solid var(--border);
+    border-radius: 100px; padding: 4px 10px 4px 4px; cursor: pointer; font-size: 13px;
+    user-select: none; background: var(--card);
+  }
+  .betrokkene-filter-chip.actief { border-color: var(--accent); background: #eaf1fe; }
+
   .modal-overlay {
     display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 50;
     align-items: flex-end; justify-content: center;
@@ -253,7 +268,7 @@
     <div class="vaste-artikelen-link" id="open-vaste-artikelen">⚙️ Vaste artikelen beheren</div>
   </section>
 
-  <section id="tab-content-kalender" class="tab-content" style="display:none;">
+  <section id="tab-content-kalender" class="tab-content" style="display:none; position:relative;">
     <div class="maand-strip">
       <button id="maand-vorige" class="maand-nav-btn">‹</button>
       <span id="maand-label" class="maand-label"></span>
@@ -263,43 +278,43 @@
 
     <div id="verjaardagen-overzicht"></div>
 
-    <div class="add-bar">
-      <div class="afspraak-form-rij">
-        <div class="add-form">
-          <div class="add-row">
-            <input id="afspraak-titel-input" type="text" placeholder="Titel afspraak">
-          </div>
-          <div class="add-row">
-            <input id="afspraak-datum-input" type="date">
-          </div>
-          <div class="add-row">
-            <input id="afspraak-tijd-input" type="time" step="300" placeholder="Starttijd (optioneel)">
-            <input id="afspraak-eindtijd-input" type="time" step="300" placeholder="Eindtijd (optioneel)">
-          </div>
-          <div class="add-row">
-            <select id="afspraak-herhaal-select">
-              <option value="">Herhaalt niet</option>
-              <option value="wekelijks">Elke week</option>
-              <option value="tweewekelijks">Elke 2 weken</option>
-              <option value="maandelijks">Elke maand</option>
-            </select>
-          </div>
-          <div class="add-row">
-            <button class="btn-add" id="afspraak-add-btn" title="Toevoegen" style="width:100%;">+ Toevoegen</button>
-          </div>
-        </div>
-        <div class="add-form betrokkenen-form">
-          <div class="betrokkenen-form-titel">Deelnemers</div>
-          <div class="betrokkenen-kies" id="afspraak-betrokkenen-kies"></div>
-        </div>
-      </div>
-    </div>
+    <div class="betrokkenen-filter-rij" id="betrokkenen-filter-rij"></div>
 
     <div id="agenda-lijst"></div>
 
     <div class="vaste-artikelen-link" id="open-ics-modal">🔗 Agenda-abonnement (voor iPhone Agenda-app)</div>
+
+    <button class="fab-add-btn" id="open-afspraak-add-modal" title="Nieuwe afspraak">+</button>
   </section>
 </main>
+
+<div class="modal-overlay" id="afspraak-add-modal-overlay">
+  <div class="modal">
+    <button class="modal-close" id="close-afspraak-add-modal">✕</button>
+    <h2>Nieuwe afspraak</h2>
+    <div class="add-row">
+      <input id="afspraak-titel-input" type="text" placeholder="Titel afspraak">
+    </div>
+    <div class="add-row">
+      <input id="afspraak-datum-input" type="date">
+    </div>
+    <div class="add-row">
+      <input id="afspraak-tijd-input" type="text" inputmode="numeric" placeholder="Starttijd, bijv. 14:30 (optioneel)">
+      <input id="afspraak-eindtijd-input" type="text" inputmode="numeric" placeholder="Eindtijd (optioneel)">
+    </div>
+    <div class="add-row">
+      <select id="afspraak-herhaal-select">
+        <option value="">Herhaalt niet</option>
+        <option value="wekelijks">Elke week</option>
+        <option value="tweewekelijks">Elke 2 weken</option>
+        <option value="maandelijks">Elke maand</option>
+      </select>
+    </div>
+    <div class="betrokkenen-form-titel">Deelnemers</div>
+    <div class="betrokkenen-kies" id="afspraak-betrokkenen-kies"></div>
+    <button class="btn-add" id="afspraak-add-btn" title="Toevoegen" style="width:100%; margin-top:8px;">+ Toevoegen</button>
+  </div>
+</div>
 
 <div class="modal-overlay" id="verjaardag-modal-overlay">
   <div class="modal">
@@ -400,7 +415,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.9';
+const APP_VERSIE = 'v0.10';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -678,6 +693,46 @@ const GezinKalender = (function () {
     });
   }
 
+  // -----------------------------------------------------------------
+  // Tijdsinvoer via getypte tekst (iOS toont bij <input type="time"> altijd
+  // het scroll-wiel, geen toetsenbord — vandaar een eigen tekstveld met
+  // parsing + afronden op 5 minuten in plaats van het native element).
+  // -----------------------------------------------------------------
+  function rondAfOpVijfMinuten(uren, minuten) {
+    let totaalMin = uren * 60 + minuten;
+    totaalMin = Math.round(totaalMin / 5) * 5;
+    if (totaalMin >= 24 * 60) totaalMin -= 24 * 60;
+    if (totaalMin < 0) totaalMin += 24 * 60;
+    const u = Math.floor(totaalMin / 60);
+    const m = totaalMin % 60;
+    return `${String(u).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+
+  // Accepteert "14:30", "14.30", "1430", "930", "14" als tijdsinvoer.
+  // Geeft { tijd: 'HH:MM' } terug (afgerond op 5 min), { tijd: null } bij lege
+  // invoer, of { error: true } als het écht niet te parsen is.
+  function parseTijdInvoer(str) {
+    const s = (str || '').trim();
+    if (!s) return { tijd: null };
+    let uren, minuten;
+    const sepMatch = s.match(/^(\d{1,2})[:.hu](\d{1,2})$/i);
+    if (sepMatch) {
+      uren = parseInt(sepMatch[1], 10);
+      minuten = parseInt(sepMatch[2], 10);
+    } else if (/^\d{3,4}$/.test(s)) {
+      minuten = parseInt(s.slice(-2), 10);
+      uren = parseInt(s.slice(0, -2), 10);
+    } else if (/^\d{1,2}$/.test(s)) {
+      uren = parseInt(s, 10);
+      minuten = 0;
+    } else {
+      return { error: true };
+    }
+    if (isNaN(uren) || uren < 0 || uren > 23) return { error: true };
+    if (isNaN(minuten) || minuten < 0 || minuten > 59) return { error: true };
+    return { tijd: rondAfOpVijfMinuten(uren, minuten) };
+  }
+
   function buildAfspraakInsertPayload({ titel, datum, tijd, eindtijd, betrokkenen }) {
     if (!titel || !titel.trim()) throw new Error('Titel is verplicht');
     if (!datum) throw new Error('Datum is verplicht');
@@ -795,10 +850,24 @@ const GezinKalender = (function () {
     return { naam: naam.trim(), dag: dagNum, maand: maandNum, jaar: jaarNum };
   }
 
+  // Filtert de output van buildMonthAgenda op betrokkenen — verjaardagen
+  // blijven altijd zichtbaar (gezinsbrede info, geen "van iemand"). Bij een
+  // lege selectie verandert er niets (alles zichtbaar, huidig gedrag).
+  function filterAgendaOpBetrokkenen(dagen, geselecteerd) {
+    if (!geselecteerd || geselecteerd.length === 0) return dagen;
+    return dagen
+      .map(dag => ({
+        ...dag,
+        items: dag.items.filter(item => item.type === 'verjaardag' || (item.betrokkenen || []).some(k => geselecteerd.includes(k))),
+      }))
+      .filter(dag => dag.items.length > 0);
+  }
+
   return {
     BETROKKENEN, MAAND_NAMEN, FREQUENTIES, toIsoDate, getMonthBounds, monthLabel, getViewStartDate, computeLeeftijd, normalizeTijd, buildIcsFeedUrl,
     getBirthdayOccurrencesInMonth, getBirthdaysOverviewForMonth, buildMonthAgenda, buildAfspraakInsertPayload, buildAfspraakUpdatePayload, buildVerjaardagInsertPayload,
     berekenVolgendeDatum, genereerReeksData, berekenNieuweHorizon, moetReeksVerlengdWorden, buildReeksInsertPayload,
+    rondAfOpVijfMinuten, parseTijdInvoer, filterAgendaOpBetrokkenen,
   };
 })();
 
@@ -961,7 +1030,11 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     });
 
     async function cleanupExpiredItems() {
-      const idsToDelete = GezinBoodschappen.cleanupExpired(items);
+      // Zelf verse data ophalen i.p.v. vertrouwen op de closure-variabele `items`,
+      // want die kan op het moment van aanroepen nog leeg zijn (init-volgorde).
+      const { data, error } = await supabase.from('boodschappen_items').select('*');
+      if (error) { console.error(error); return; }
+      const idsToDelete = GezinBoodschappen.cleanupExpired(data || []);
       if (idsToDelete.length === 0) return;
       await supabase.from('boodschappen_items').delete().in('id', idsToDelete);
     }
@@ -1124,6 +1197,48 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     const afspraakBetrokkenenKies = maakBetrokkenenKies(document.getElementById('afspraak-betrokkenen-kies'));
     const editBetrokkenenKies = maakBetrokkenenKies(document.getElementById('edit-afspraak-betrokkenen-kies'));
 
+    // Koppelt "blur"-normalisatie aan een getypt tijdveld: parsen + afronden
+    // op 5 minuten, direct zichtbaar terugschrijven in het veld zelf.
+    function wireTijdInput(inputEl) {
+      inputEl.addEventListener('blur', () => {
+        const resultaat = GezinKalender.parseTijdInvoer(inputEl.value);
+        if (resultaat.error) {
+          alert('Kon dit tijdstip niet herkennen. Probeer bijv. "14:30".');
+          inputEl.value = '';
+          return;
+        }
+        inputEl.value = resultaat.tijd || '';
+      });
+    }
+    wireTijdInput(afspraakTijdInput);
+    wireTijdInput(afspraakEindtijdInput);
+    wireTijdInput(document.getElementById('edit-afspraak-tijd-input'));
+    wireTijdInput(document.getElementById('edit-afspraak-eindtijd-input'));
+
+    // --- Betrokkenen-filter (welke afspraken tonen in de agenda-lijst) ---
+    let actieveFilterKeys = [];
+    function renderBetrokkenenFilterRij() {
+      const el = document.getElementById('betrokkenen-filter-rij');
+      el.innerHTML = GezinKalender.BETROKKENEN.map(b => `
+        <div class="betrokkene-filter-chip ${actieveFilterKeys.includes(b.key) ? 'actief' : ''}" data-key="${b.key}">
+          <span class="betrokkene-avatar">${BETROKKENE_ICONEN[b.icoon]}</span>${escapeHtml(b.naam)}
+        </div>
+      `).join('');
+      el.querySelectorAll('.betrokkene-filter-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          const key = chip.getAttribute('data-key');
+          if (actieveFilterKeys.includes(key)) {
+            actieveFilterKeys = actieveFilterKeys.filter(k => k !== key);
+          } else {
+            actieveFilterKeys = [...actieveFilterKeys, key];
+          }
+          renderBetrokkenenFilterRij();
+          renderAgenda();
+        });
+      });
+    }
+    renderBetrokkenenFilterRij();
+
     afspraakDatumInput.value = GezinKalender.toIsoDate(vandaag);
 
     function populateMaandSelect() {
@@ -1177,7 +1292,8 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     function renderAgenda() {
       renderMaandLabel();
       renderVerjaardagenOverzicht();
-      const dagen = GezinKalender.buildMonthAgenda(afspraken, verjaardagen, bekekenJaar, bekekenMaand, vandaag);
+      let dagen = GezinKalender.buildMonthAgenda(afspraken, verjaardagen, bekekenJaar, bekekenMaand, vandaag);
+      dagen = GezinKalender.filterAgendaOpBetrokkenen(dagen, actieveFilterKeys);
       if (dagen.length === 0) {
         agendaLijstEl.innerHTML = '<div class="empty-state">Geen afspraken deze maand 🎉</div>';
         return;
@@ -1230,6 +1346,17 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     });
 
     document.getElementById('afspraak-add-btn').addEventListener('click', async () => {
+      // Tijden alsnog expliciet normaliseren, voor het geval "blur" niet
+      // getriggerd is (bijv. bij razendsnel tikken op mobiel).
+      const tijdResultaat = GezinKalender.parseTijdInvoer(afspraakTijdInput.value);
+      const eindtijdResultaat = GezinKalender.parseTijdInvoer(afspraakEindtijdInput.value);
+      if (tijdResultaat.error || eindtijdResultaat.error) {
+        alert('Kon een van de tijdstippen niet herkennen. Probeer bijv. "14:30".');
+        return;
+      }
+      afspraakTijdInput.value = tijdResultaat.tijd || '';
+      afspraakEindtijdInput.value = eindtijdResultaat.tijd || '';
+
       let payload;
       try {
         payload = GezinKalender.buildAfspraakInsertPayload({
@@ -1273,6 +1400,15 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       afspraakDatumInput.value = GezinKalender.toIsoDate(vandaag);
       document.getElementById('afspraak-herhaal-select').value = '';
       afspraakBetrokkenenKies.reset();
+      document.getElementById('afspraak-add-modal-overlay').classList.remove('open');
+    });
+
+    // --- Nieuwe-afspraak-modal openen/sluiten (via de floating +-knop) ---
+    document.getElementById('open-afspraak-add-modal').addEventListener('click', () => {
+      document.getElementById('afspraak-add-modal-overlay').classList.add('open');
+    });
+    document.getElementById('close-afspraak-add-modal').addEventListener('click', () => {
+      document.getElementById('afspraak-add-modal-overlay').classList.remove('open');
     });
 
     // --- Afspraak bewerken ---
@@ -1296,13 +1432,25 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     });
     document.getElementById('edit-afspraak-save-btn').addEventListener('click', async () => {
       if (editingAfspraakId == null) return;
+      // Tijden alsnog expliciet normaliseren (zelfde reden als bij toevoegen).
+      const editTijdInput = document.getElementById('edit-afspraak-tijd-input');
+      const editEindtijdInput = document.getElementById('edit-afspraak-eindtijd-input');
+      const editTijdResultaat = GezinKalender.parseTijdInvoer(editTijdInput.value);
+      const editEindtijdResultaat = GezinKalender.parseTijdInvoer(editEindtijdInput.value);
+      if (editTijdResultaat.error || editEindtijdResultaat.error) {
+        alert('Kon een van de tijdstippen niet herkennen. Probeer bijv. "14:30".');
+        return;
+      }
+      editTijdInput.value = editTijdResultaat.tijd || '';
+      editEindtijdInput.value = editEindtijdResultaat.tijd || '';
+
       let payload;
       try {
         payload = GezinKalender.buildAfspraakUpdatePayload({
           titel: document.getElementById('edit-afspraak-titel-input').value,
           datum: document.getElementById('edit-afspraak-datum-input').value,
-          tijd: document.getElementById('edit-afspraak-tijd-input').value,
-          eindtijd: document.getElementById('edit-afspraak-eindtijd-input').value,
+          tijd: editTijdInput.value,
+          eindtijd: editEindtijdInput.value,
           betrokkenen: editBetrokkenenKies.getGekozen(),
         });
       } catch (err) {
