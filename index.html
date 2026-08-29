@@ -296,6 +296,8 @@
     </div>
 
     <div id="agenda-lijst"></div>
+
+    <div class="vaste-artikelen-link" id="open-ics-modal">🔗 Agenda-abonnement (voor iPhone Agenda-app)</div>
   </section>
 </main>
 
@@ -342,6 +344,25 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="ics-modal-overlay">
+  <div class="modal">
+    <button class="modal-close" id="close-ics-modal">✕</button>
+    <h2>Agenda-abonnement</h2>
+    <p style="font-size:13px; color:var(--muted); margin-top:0;">
+      Voeg deze URL toe in de iPhone Agenda-app (Instellingen → Agenda's → Account toevoegen → Overig →
+      Agenda-abonnement toevoegen). Wijzigingen in de app verschijnen na een tijdje automatisch — dat interval
+      bepaalt Apple, niet wij.
+    </p>
+    <div class="add-row">
+      <input id="ics-url-input" type="text" readonly style="font-size:12px;">
+    </div>
+    <button class="btn-add" id="ics-copy-btn" style="width:100%; margin-bottom:8px;">📋 Kopieer URL</button>
+    <button id="ics-regenerate-btn" style="background:none; border:1px solid var(--danger); color:var(--danger); border-radius:8px; padding:8px 12px; width:100%; cursor:pointer;">
+      Nieuwe token genereren (oude URL stopt met werken)
+    </button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="vaste-modal-overlay">
   <div class="modal">
     <button class="modal-close" id="close-vaste-modal">✕</button>
@@ -379,7 +400,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.8';
+const APP_VERSIE = 'v0.9';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -683,6 +704,11 @@ const GezinKalender = (function () {
     return buildAfspraakInsertPayload(velden);
   }
 
+  // Bouwt de abonnement-URL voor de iCal-feed op basis van de Supabase-project-URL en de huidige token.
+  function buildIcsFeedUrl(supabaseUrl, token) {
+    return `${supabaseUrl}/functions/v1/ics-feed?token=${token}`;
+  }
+
   // -----------------------------------------------------------------
   // Herhalende afspraken — optie A: elke voorkomen is een eigen, losse rij
   // in kalender_afspraken (net zo bewerkbaar/verwijderbaar als een eenmalige
@@ -770,7 +796,7 @@ const GezinKalender = (function () {
   }
 
   return {
-    BETROKKENEN, MAAND_NAMEN, FREQUENTIES, toIsoDate, getMonthBounds, monthLabel, getViewStartDate, computeLeeftijd, normalizeTijd,
+    BETROKKENEN, MAAND_NAMEN, FREQUENTIES, toIsoDate, getMonthBounds, monthLabel, getViewStartDate, computeLeeftijd, normalizeTijd, buildIcsFeedUrl,
     getBirthdayOccurrencesInMonth, getBirthdaysOverviewForMonth, buildMonthAgenda, buildAfspraakInsertPayload, buildAfspraakUpdatePayload, buildVerjaardagInsertPayload,
     berekenVolgendeDatum, genereerReeksData, berekenNieuweHorizon, moetReeksVerlengdWorden, buildReeksInsertPayload,
   };
@@ -1362,6 +1388,53 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       renderAgenda();
     }
 
+    // --- Agenda-abonnement (iCal-feed) ---
+    let icsInstelling = null; // { id, ics_token }
+
+    function genereerToken() {
+      const bytes = new Uint8Array(24);
+      crypto.getRandomValues(bytes);
+      return [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function renderIcsUrl() {
+      if (!icsInstelling) return;
+      document.getElementById('ics-url-input').value = GezinKalender.buildIcsFeedUrl(SUPABASE_URL, icsInstelling.ics_token);
+    }
+
+    async function loadIcsInstelling() {
+      const { data, error } = await supabase.from('kalender_instellingen').select('*').limit(1);
+      if (error) { console.error(error); return; }
+      icsInstelling = (data && data[0]) || null;
+      renderIcsUrl();
+    }
+
+    const icsModalOverlay = document.getElementById('ics-modal-overlay');
+    document.getElementById('open-ics-modal').addEventListener('click', () => {
+      renderIcsUrl();
+      icsModalOverlay.classList.add('open');
+    });
+    document.getElementById('close-ics-modal').addEventListener('click', () => {
+      icsModalOverlay.classList.remove('open');
+    });
+    document.getElementById('ics-copy-btn').addEventListener('click', async () => {
+      const input = document.getElementById('ics-url-input');
+      try {
+        await navigator.clipboard.writeText(input.value);
+      } catch (e) {
+        input.select(); // fallback voor browsers zonder clipboard-API-toegang
+      }
+    });
+    document.getElementById('ics-regenerate-btn').addEventListener('click', async () => {
+      if (!icsInstelling) return;
+      if (!confirm("Nieuwe token genereren? De huidige agenda-abonnement-URL stopt dan met werken — je moet 'm dan opnieuw instellen op je iPhone.")) return;
+      const nieuweToken = genereerToken();
+      const { error } = await supabase.from('kalender_instellingen').update({ ics_token: nieuweToken }).eq('id', icsInstelling.id);
+      if (error) { alert('Kon de token niet vervangen: ' + error.message); return; }
+      icsInstelling.ics_token = nieuweToken;
+      renderIcsUrl();
+    });
+
     // --- Realtime ---
     function subscribeRealtime() {
       supabase.channel('boodschappen_items_changes')
@@ -1422,6 +1495,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       await verlengActieveReeksen();
       await loadAfspraken();
       await loadVerjaardagen();
+      await loadIcsInstelling();
       subscribeRealtime();
     })();
   })();
