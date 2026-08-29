@@ -254,6 +254,38 @@
   .subtaak-row .titel { flex: 1; font-size: 14px; }
   .subtaak-row.afgevinkt .titel { text-decoration: line-through; color: var(--muted); }
   .subtaak-row button { background: none; border: none; color: var(--danger); font-size: 16px; cursor: pointer; }
+
+  .recept-kaart {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px; margin-bottom: 10px; cursor: pointer; display: flex; gap: 10px; align-items: center;
+  }
+  .recept-kaart img.thumb { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: var(--bg); }
+  .recept-kaart .thumb-placeholder {
+    width: 56px; height: 56px; border-radius: 8px; background: var(--bg); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 22px;
+  }
+  .recept-kaart .info { flex: 1; min-width: 0; }
+  .recept-kaart .titel { font-size: 15px; font-weight: 600; }
+  .recept-kaart .sub-info { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .recept-kaart .delete-btn { background: none; border: none; color: var(--danger); font-size: 18px; cursor: pointer; flex-shrink: 0; }
+
+  .ingredient-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .ingredient-row .naam { flex: 1; font-size: 14px; }
+  .ingredient-row .hoeveelheid { font-size: 13px; color: var(--muted); }
+  .ingredient-row button { background: none; border: none; color: var(--danger); font-size: 16px; cursor: pointer; }
+
+  .recept-fotos-grid { display: flex; gap: 8px; flex-wrap: wrap; }
+  .recept-foto-thumb { position: relative; width: 72px; height: 72px; }
+  .recept-foto-thumb img { width: 100%; height: 100%; border-radius: 8px; object-fit: cover; }
+  .recept-foto-thumb button {
+    position: absolute; top: -6px; right: -6px; background: var(--danger); color: #fff;
+    border: 2px solid #fff; border-radius: 50%; width: 20px; height: 20px; font-size: 11px;
+    line-height: 1; cursor: pointer;
+  }
+
+  .recept-boodschap-optie { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .recept-boodschap-optie label { flex: 1; font-size: 14px; display: flex; justify-content: space-between; gap: 8px; }
+  .recept-boodschap-optie .hoeveelheid { color: var(--muted); font-size: 13px; }
 </style>
 </head>
 <body>
@@ -268,7 +300,7 @@
   <button class="tab-btn active" data-tab="boodschappen">🛒 Boodschappen</button>
   <button class="tab-btn" data-tab="kalender">📅 Kalender</button>
   <button class="tab-btn" data-tab="taken">✅ Taken</button>
-  <button class="tab-btn" data-tab="recepten" disabled title="Nog te bouwen">📖 Recepten</button>
+  <button class="tab-btn" data-tab="recepten">📖 Recepten</button>
 </nav>
 
 <main>
@@ -340,7 +372,82 @@
 
     <div id="taken-lijst"></div>
   </section>
+
+  <section id="tab-content-recepten" class="tab-content" style="display:none;">
+    <div class="add-bar">
+      <div class="add-form">
+        <div class="add-row">
+          <input id="recept-titel-input" type="text" placeholder="Titel recept">
+        </div>
+        <div class="add-row">
+          <textarea id="recept-bereidingswijze-input" placeholder="Bereidingswijze (optioneel)" rows="3" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-size:15px; font-family:inherit; resize:vertical;"></textarea>
+        </div>
+        <div class="add-row">
+          <input id="recept-bron-url-input" type="text" placeholder="Bron-URL (optioneel)">
+        </div>
+        <div class="add-row">
+          <input id="recept-kookboek-titel-input" type="text" placeholder="Kookboek (optioneel)">
+          <input id="recept-kookboek-pagina-input" type="text" placeholder="Pagina">
+        </div>
+        <div class="add-row">
+          <button class="btn-add" id="recept-add-btn" title="Toevoegen" style="width:100%;">+ Recept aanmaken</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="recepten-lijst"></div>
+  </section>
 </main>
+
+<div class="modal-overlay" id="recept-detail-modal-overlay">
+  <div class="modal">
+    <button class="modal-close" id="close-recept-detail-modal">✕</button>
+    <h2>Recept bewerken</h2>
+    <div class="add-row">
+      <input id="recept-edit-titel-input" type="text" placeholder="Titel recept">
+    </div>
+    <div class="add-row">
+      <textarea id="recept-edit-bereidingswijze-input" placeholder="Bereidingswijze (optioneel)" rows="4" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-size:15px; font-family:inherit; resize:vertical;"></textarea>
+    </div>
+    <div class="add-row">
+      <input id="recept-edit-bron-url-input" type="text" placeholder="Bron-URL (optioneel)">
+    </div>
+    <div class="add-row">
+      <input id="recept-edit-kookboek-titel-input" type="text" placeholder="Kookboek (optioneel)">
+      <input id="recept-edit-kookboek-pagina-input" type="text" placeholder="Pagina">
+    </div>
+    <button class="btn-add" id="recept-edit-save-btn" style="margin-top:4px; width:100%;">Opslaan</button>
+
+    <div style="margin-top:16px; padding-top:12px; border-top:1px solid var(--border);">
+      <div class="betrokkenen-form-titel">Ingrediënten</div>
+      <div id="ingredienten-lijst"></div>
+      <div class="add-row" style="margin-top:8px;">
+        <input id="ingredient-naam-input" type="text" placeholder="Ingrediënt">
+        <input id="ingredient-hoeveelheid-input" type="text" placeholder="Hoeveelheid" style="max-width:110px;">
+        <button class="btn-add" id="ingredient-add-btn" title="Toevoegen">+</button>
+      </div>
+      <button id="open-recept-boodschappen-btn" style="margin-top:10px; width:100%; background:none; border:1.5px solid var(--accent); color:var(--accent); border-radius:8px; padding:8px 12px; cursor:pointer;">
+        🛒 Zet ingrediënten op de boodschappenlijst
+      </button>
+    </div>
+
+    <div style="margin-top:16px; padding-top:12px; border-top:1px solid var(--border);">
+      <div class="betrokkenen-form-titel">Foto's</div>
+      <div id="recept-fotos-grid" class="recept-fotos-grid"></div>
+      <input id="recept-foto-input" type="file" accept="image/*" multiple style="margin-top:8px; font-size:13px;">
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="recept-boodschappen-modal-overlay">
+  <div class="modal">
+    <button class="modal-close" id="close-recept-boodschappen-modal">✕</button>
+    <h2>Op de boodschappenlijst zetten</h2>
+    <p style="font-size:13px; color:var(--muted); margin-top:0;">Vink uit wat je al in huis hebt.</p>
+    <div id="recept-boodschappen-kies"></div>
+    <button class="btn-add" id="recept-boodschappen-toevoegen-btn" style="margin-top:10px; width:100%;">Toevoegen aan boodschappenlijst</button>
+  </div>
+</div>
 
 <div class="modal-overlay" id="taak-detail-modal-overlay">
   <div class="modal">
@@ -513,7 +620,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.11';
+const APP_VERSIE = 'v0.12';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -1097,9 +1204,51 @@ const GezinTaken = (function () {
   };
 })();
 
+// ---------------------------------------------------------------
+// GezinRecepten — pure logica voor de Recepten-tab: titel, gestructureerde
+// ingrediënten (naam + optionele hoeveelheid), bereidingswijze, optionele
+// bron-URL, optionele kookboek-referentie, optioneel meerdere foto's.
+// Een "label"-kolom wordt gereserveerd in het datamodel maar (nog) niet in
+// de UI gebruikt, zoals afgesproken.
+// ---------------------------------------------------------------
+const GezinRecepten = (function () {
+
+  function buildReceptInsertPayload({ titel, bereidingswijze, bron_url, kookboek_titel, kookboek_pagina }) {
+    if (!titel || !titel.trim()) throw new Error('Titel is verplicht');
+    return {
+      titel: titel.trim(),
+      bereidingswijze: bereidingswijze && bereidingswijze.trim() ? bereidingswijze.trim() : null,
+      bron_url: bron_url && bron_url.trim() ? bron_url.trim() : null,
+      kookboek_titel: kookboek_titel && kookboek_titel.trim() ? kookboek_titel.trim() : null,
+      kookboek_pagina: kookboek_pagina && String(kookboek_pagina).trim() ? String(kookboek_pagina).trim() : null,
+      label: null,
+    };
+  }
+
+  // Bewerken deelt dezelfde validatie als toevoegen.
+  function buildReceptUpdatePayload(velden) {
+    return buildReceptInsertPayload(velden);
+  }
+
+  function buildIngredientInsertPayload({ naam, hoeveelheid }) {
+    if (!naam || !naam.trim()) throw new Error('Naam is verplicht');
+    return { naam: naam.trim(), hoeveelheid: hoeveelheid && hoeveelheid.trim() ? hoeveelheid.trim() : null };
+  }
+
+  // Filtert de ingrediënten die (nog) aangevinkt staan in het "zet op de
+  // boodschappenlijst"-schermpje — de gebruiker vinkt uit wat al in huis is.
+  function filterGeselecteerdeIngredienten(ingredienten, geselecteerdeIds) {
+    return ingredienten.filter(i => geselecteerdeIds.includes(i.id));
+  }
+
+  return {
+    buildReceptInsertPayload, buildReceptUpdatePayload, buildIngredientInsertPayload, filterGeselecteerdeIngredienten,
+  };
+})();
+
 // Maak beschikbaar voor de jsdom-testrunner (Node) én de browser.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { GezinBoodschappen, GezinKalender, GezinTaken };
+  module.exports = { GezinBoodschappen, GezinKalender, GezinTaken, GezinRecepten };
 }
 
 // ---------------------------------------------------------------
@@ -2055,6 +2204,245 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       if (editingTaakId != null) renderSubtakenLijst();
     }
 
+    // --- Recepten-tab ---
+    let recepten = [];
+    let ingredienten = [];
+    let fotos = [];
+    let editingReceptId = null;
+
+    function renderReceptenLijst() {
+      const el = document.getElementById('recepten-lijst');
+      if (recepten.length === 0) { el.innerHTML = '<div class="empty-state">Nog geen recepten 📖</div>'; return; }
+      const sorted = [...recepten].sort((a, b) => a.titel.localeCompare(b.titel, 'nl'));
+      el.innerHTML = sorted.map(r => {
+        const eersteFoto = fotos.find(f => f.recept_id === r.id);
+        const subInfoDelen = [];
+        if (r.kookboek_titel) subInfoDelen.push(`${escapeHtml(r.kookboek_titel)}${r.kookboek_pagina ? ` p.${escapeHtml(r.kookboek_pagina)}` : ''}`);
+        if (r.bron_url) subInfoDelen.push('🔗 link');
+        return `
+          <div class="recept-kaart" data-id="${r.id}">
+            ${eersteFoto ? `<img class="thumb" src="${eersteFoto.url}" alt="">` : '<div class="thumb-placeholder">📖</div>'}
+            <div class="info">
+              <div class="titel">${escapeHtml(r.titel)}</div>
+              ${subInfoDelen.length ? `<div class="sub-info">${subInfoDelen.join(' · ')}</div>` : ''}
+            </div>
+            <button class="delete-btn" data-role="delete-recept" title="Verwijderen">🗑</button>
+          </div>
+        `;
+      }).join('');
+
+      el.querySelectorAll('.recept-kaart').forEach(kaart => {
+        kaart.addEventListener('click', (e) => {
+          if (e.target.closest('[data-role="delete-recept"]')) return;
+          const id = kaart.getAttribute('data-id');
+          const recept = recepten.find(r => String(r.id) === String(id));
+          if (recept) openReceptDetailModal(recept);
+        });
+      });
+      el.querySelectorAll('[data-role="delete-recept"]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.closest('.recept-kaart').getAttribute('data-id');
+          if (!confirm('Dit recept verwijderen?')) return;
+          await supabase.from('recepten').delete().eq('id', id);
+        });
+      });
+    }
+
+    document.getElementById('recept-add-btn').addEventListener('click', async () => {
+      let payload;
+      try {
+        payload = GezinRecepten.buildReceptInsertPayload({
+          titel: document.getElementById('recept-titel-input').value,
+          bereidingswijze: document.getElementById('recept-bereidingswijze-input').value,
+          bron_url: document.getElementById('recept-bron-url-input').value,
+          kookboek_titel: document.getElementById('recept-kookboek-titel-input').value,
+          kookboek_pagina: document.getElementById('recept-kookboek-pagina-input').value,
+        });
+      } catch (err) {
+        alert(err.message);
+        return;
+      }
+      const { data, error } = await supabase.from('recepten').insert(payload).select();
+      if (error) { alert('Kon niet toevoegen: ' + error.message); return; }
+      document.getElementById('recept-titel-input').value = '';
+      document.getElementById('recept-bereidingswijze-input').value = '';
+      document.getElementById('recept-bron-url-input').value = '';
+      document.getElementById('recept-kookboek-titel-input').value = '';
+      document.getElementById('recept-kookboek-pagina-input').value = '';
+      // Meteen doorschakelen naar het detailmodal, zodat ingrediënten/foto's
+      // direct toegevoegd kunnen worden zonder terug te hoeven naar de lijst.
+      if (data && data[0]) openReceptDetailModal(data[0]);
+    });
+
+    // --- Recept-detailmodal ---
+    const receptDetailModalOverlay = document.getElementById('recept-detail-modal-overlay');
+    function openReceptDetailModal(recept) {
+      editingReceptId = recept.id;
+      document.getElementById('recept-edit-titel-input').value = recept.titel;
+      document.getElementById('recept-edit-bereidingswijze-input').value = recept.bereidingswijze || '';
+      document.getElementById('recept-edit-bron-url-input').value = recept.bron_url || '';
+      document.getElementById('recept-edit-kookboek-titel-input').value = recept.kookboek_titel || '';
+      document.getElementById('recept-edit-kookboek-pagina-input').value = recept.kookboek_pagina || '';
+      renderIngredientenLijst();
+      renderReceptFotosGrid();
+      receptDetailModalOverlay.classList.add('open');
+    }
+    document.getElementById('close-recept-detail-modal').addEventListener('click', () => {
+      receptDetailModalOverlay.classList.remove('open');
+      editingReceptId = null;
+    });
+    document.getElementById('recept-edit-save-btn').addEventListener('click', async () => {
+      if (editingReceptId == null) return;
+      let payload;
+      try {
+        payload = GezinRecepten.buildReceptUpdatePayload({
+          titel: document.getElementById('recept-edit-titel-input').value,
+          bereidingswijze: document.getElementById('recept-edit-bereidingswijze-input').value,
+          bron_url: document.getElementById('recept-edit-bron-url-input').value,
+          kookboek_titel: document.getElementById('recept-edit-kookboek-titel-input').value,
+          kookboek_pagina: document.getElementById('recept-edit-kookboek-pagina-input').value,
+        });
+      } catch (err) {
+        alert(err.message);
+        return;
+      }
+      const { error } = await supabase.from('recepten').update(payload).eq('id', editingReceptId);
+      if (error) { alert('Kon niet opslaan: ' + error.message); return; }
+      receptDetailModalOverlay.classList.remove('open');
+      editingReceptId = null;
+    });
+
+    function renderIngredientenLijst() {
+      const el = document.getElementById('ingredienten-lijst');
+      if (editingReceptId == null) { el.innerHTML = ''; return; }
+      const lijst = ingredienten.filter(i => i.recept_id === editingReceptId);
+      el.innerHTML = lijst.map(i => `
+        <div class="ingredient-row" data-id="${i.id}">
+          <span class="naam">${escapeHtml(i.naam)}</span>
+          <span class="hoeveelheid">${i.hoeveelheid ? escapeHtml(i.hoeveelheid) : ''}</span>
+          <button data-role="delete-ingredient">🗑</button>
+        </div>
+      `).join('');
+      el.querySelectorAll('[data-role="delete-ingredient"]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.closest('.ingredient-row').getAttribute('data-id');
+          await supabase.from('recepten_ingredienten').delete().eq('id', id);
+        });
+      });
+    }
+
+    document.getElementById('ingredient-add-btn').addEventListener('click', async () => {
+      if (editingReceptId == null) return;
+      let payload;
+      try {
+        payload = GezinRecepten.buildIngredientInsertPayload({
+          naam: document.getElementById('ingredient-naam-input').value,
+          hoeveelheid: document.getElementById('ingredient-hoeveelheid-input').value,
+        });
+      } catch (err) {
+        alert(err.message);
+        return;
+      }
+      const { error } = await supabase.from('recepten_ingredienten').insert({ ...payload, recept_id: editingReceptId });
+      if (error) { alert('Kon ingrediënt niet toevoegen: ' + error.message); return; }
+      document.getElementById('ingredient-naam-input').value = '';
+      document.getElementById('ingredient-hoeveelheid-input').value = '';
+    });
+
+    // --- Foto's (Supabase Storage) ---
+    function renderReceptFotosGrid() {
+      const el = document.getElementById('recept-fotos-grid');
+      if (editingReceptId == null) { el.innerHTML = ''; return; }
+      const lijst = fotos.filter(f => f.recept_id === editingReceptId);
+      el.innerHTML = lijst.map(f => `
+        <div class="recept-foto-thumb" data-id="${f.id}">
+          <img src="${f.url}" alt="">
+          <button data-role="delete-foto">✕</button>
+        </div>
+      `).join('');
+      el.querySelectorAll('[data-role="delete-foto"]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.closest('.recept-foto-thumb').getAttribute('data-id');
+          await supabase.from('recepten_fotos').delete().eq('id', id);
+        });
+      });
+    }
+
+    document.getElementById('recept-foto-input').addEventListener('change', async (e) => {
+      if (editingReceptId == null) return;
+      const bestanden = [...e.target.files];
+      for (const bestand of bestanden) {
+        const pad = `${editingReceptId}/${Date.now()}-${bestand.name}`;
+        const { error: uploadError } = await supabase.storage.from('recepten-fotos').upload(pad, bestand);
+        if (uploadError) { alert('Kon foto niet uploaden: ' + uploadError.message); continue; }
+        const { data: urlData } = supabase.storage.from('recepten-fotos').getPublicUrl(pad);
+        await supabase.from('recepten_fotos').insert({ recept_id: editingReceptId, url: urlData.publicUrl });
+      }
+      e.target.value = '';
+    });
+
+    // --- "Zet op boodschappenlijst" ---
+    const receptBoodschappenModalOverlay = document.getElementById('recept-boodschappen-modal-overlay');
+    document.getElementById('open-recept-boodschappen-btn').addEventListener('click', () => {
+      if (editingReceptId == null) return;
+      const lijst = ingredienten.filter(i => i.recept_id === editingReceptId);
+      const el = document.getElementById('recept-boodschappen-kies');
+      if (lijst.length === 0) {
+        el.innerHTML = '<div style="color:var(--muted); font-size:14px;">Dit recept heeft nog geen ingrediënten.</div>';
+      } else {
+        el.innerHTML = lijst.map(i => `
+          <div class="recept-boodschap-optie">
+            <label>
+              <span><input type="checkbox" value="${i.id}" checked> ${escapeHtml(i.naam)}</span>
+              <span class="hoeveelheid">${i.hoeveelheid ? escapeHtml(i.hoeveelheid) : ''}</span>
+            </label>
+          </div>
+        `).join('');
+      }
+      receptBoodschappenModalOverlay.classList.add('open');
+    });
+    document.getElementById('close-recept-boodschappen-modal').addEventListener('click', () => {
+      receptBoodschappenModalOverlay.classList.remove('open');
+    });
+    document.getElementById('recept-boodschappen-toevoegen-btn').addEventListener('click', async () => {
+      if (editingReceptId == null) return;
+      const geselecteerdeIds = [...document.querySelectorAll('#recept-boodschappen-kies input:checked')].map(el => el.value);
+      const lijst = ingredienten.filter(i => i.recept_id === editingReceptId);
+      // Checkbox-waardes zijn altijd strings (HTML), terwijl i.id een getal kan
+      // zijn (Supabase bigint) — hier expliciet coerced vergelijken.
+      const geselecteerd = lijst.filter(i => geselecteerdeIds.includes(String(i.id)));
+      for (const ing of geselecteerd) {
+        const payload = GezinBoodschappen.buildInsertPayload({
+          naam: ing.naam,
+          detail: ing.hoeveelheid || '',
+          categorie: 'Overig',
+          winkel: '',
+        });
+        await insertItem(payload);
+      }
+      receptBoodschappenModalOverlay.classList.remove('open');
+    });
+
+    async function loadRecepten() {
+      const { data, error } = await supabase.from('recepten').select('*');
+      if (error) { console.error(error); return; }
+      recepten = data || [];
+      renderReceptenLijst();
+    }
+    async function loadIngredienten() {
+      const { data, error } = await supabase.from('recepten_ingredienten').select('*');
+      if (error) { console.error(error); return; }
+      ingredienten = data || [];
+      if (editingReceptId != null) renderIngredientenLijst();
+    }
+    async function loadFotos() {
+      const { data, error } = await supabase.from('recepten_fotos').select('*');
+      if (error) { console.error(error); return; }
+      fotos = data || [];
+      renderReceptenLijst();
+      if (editingReceptId != null) renderReceptFotosGrid();
+    }
+
     // --- Realtime ---
     function subscribeRealtime() {
       supabase.channel('boodschappen_items_changes')
@@ -2085,6 +2473,21 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       supabase.channel('taken_subtaken_changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'taken_subtaken' }, () => {
           loadSubtaken();
+        })
+        .subscribe();
+      supabase.channel('recepten_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'recepten' }, () => {
+          loadRecepten();
+        })
+        .subscribe();
+      supabase.channel('recepten_ingredienten_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'recepten_ingredienten' }, () => {
+          loadIngredienten();
+        })
+        .subscribe();
+      supabase.channel('recepten_fotos_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'recepten_fotos' }, () => {
+          loadFotos();
         })
         .subscribe();
     }
@@ -2128,6 +2531,9 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       await loadIcsInstelling();
       await loadTaken();
       await loadSubtaken();
+      await loadRecepten();
+      await loadIngredienten();
+      await loadFotos();
       subscribeRealtime();
     })();
   })();
