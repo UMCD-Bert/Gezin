@@ -179,6 +179,12 @@
   .betrokkene-avatar svg { width: 100%; height: 100%; }
   .betrokkenen-rij { display: flex; gap: 4px; flex-shrink: 0; }
   .betrokkenen-kies { display: flex; gap: 8px; flex-wrap: wrap; padding: 4px 0; }
+  .betrokkenen-kies-rij { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .betrokkenen-kies-rij .betrokkenen-kies { flex: 1 1 auto; padding: 4px 0; }
+  .sjabloon-check-label {
+    display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;
+    white-space: nowrap; margin-left: auto; flex-shrink: 0;
+  }
   .betrokkene-optie {
     display: flex; align-items: center; gap: 6px; border: 1.5px solid var(--border);
     border-radius: 100px; padding: 4px 10px 4px 4px; cursor: pointer; font-size: 13px; user-select: none;
@@ -232,6 +238,11 @@
     letter-spacing: 0.04em; margin: 16px 0 6px 4px;
   }
   .taken-groep-titel:first-child { margin-top: 0; }
+  .taken-groep-titel-rij { display: flex; align-items: center; justify-content: space-between; margin-right: 4px; }
+  .verwijder-afgeronde-btn {
+    background: none; border: 1px solid var(--danger); color: var(--danger); border-radius: 100px;
+    font-size: 11px; padding: 3px 10px; cursor: pointer; text-transform: none; letter-spacing: normal; font-weight: 600;
+  }
   .taak-item {
     background: var(--card); border: 1px solid var(--border); border-radius: 10px;
     padding: 10px 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 10px;
@@ -365,10 +376,10 @@
         <input id="taak-deadline-input" type="date" placeholder="Deadline (optioneel)">
       </div>
       <div class="betrokkenen-form-titel">Actiehouder (optioneel)</div>
-      <div class="betrokkenen-kies" id="taak-actiehouders-kies"></div>
-      <div class="add-row" style="align-items:center; margin-top:6px;">
-        <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;">
-          <input type="checkbox" id="taak-sjabloon-checkbox"> Sjabloon (bijv. paklijst — herbruikbaar via "Opnieuw starten")
+      <div class="betrokkenen-kies-rij">
+        <div class="betrokkenen-kies" id="taak-actiehouders-kies"></div>
+        <label class="sjabloon-check-label">
+          <input type="checkbox" id="taak-sjabloon-checkbox"> Sjabloon
         </label>
       </div>
       <button class="btn-add" id="taak-add-btn" title="Toevoegen" style="width:100%; margin-top:8px;">+ Toevoegen</button>
@@ -464,9 +475,9 @@
       <input id="taak-edit-deadline-input" type="date">
     </div>
     <div class="betrokkenen-form-titel">Actiehouder (optioneel)</div>
-    <div class="betrokkenen-kies" id="taak-edit-actiehouders-kies"></div>
-    <div class="add-row" style="align-items:center; margin-top:6px;">
-      <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;">
+    <div class="betrokkenen-kies-rij">
+      <div class="betrokkenen-kies" id="taak-edit-actiehouders-kies"></div>
+      <label class="sjabloon-check-label">
         <input type="checkbox" id="taak-edit-sjabloon-checkbox"> Sjabloon
       </label>
     </div>
@@ -624,7 +635,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.13';
+const APP_VERSIE = 'v0.14';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -2084,13 +2095,25 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         `;
       }
 
-      function renderGroep(titel, lijst) {
+      function renderGroep(titel, lijst, metVerwijderKnop) {
         if (lijst.length === 0) return '';
-        return `<div class="taken-groep-titel">${titel}</div>` + lijst.map(renderTaakItem).join('');
+        const kopHtml = metVerwijderKnop
+          ? `<div class="taken-groep-titel taken-groep-titel-rij">${titel}<button id="verwijder-afgeronde-taken-btn" class="verwijder-afgeronde-btn">🗑 Verwijder</button></div>`
+          : `<div class="taken-groep-titel">${titel}</div>`;
+        return kopHtml + lijst.map(renderTaakItem).join('');
       }
 
-      const html = renderGroep('📋 Sjablonen', sjablonen) + renderGroep('✅ Taken', open) + renderGroep('Afgerond', afgevinkt);
+      const html = renderGroep('📋 Sjablonen', sjablonen) + renderGroep('✅ Taken', open) + renderGroep('Afgerond', afgevinkt, true);
       el.innerHTML = html || '<div class="empty-state">Nog geen taken 🎉</div>';
+
+      const verwijderAfgerondeBtn = document.getElementById('verwijder-afgeronde-taken-btn');
+      if (verwijderAfgerondeBtn) {
+        verwijderAfgerondeBtn.addEventListener('click', async () => {
+          if (!confirm(`${afgevinkt.length} afgeronde taak/taken definitief verwijderen?`)) return;
+          const ids = afgevinkt.map(t => t.id);
+          await supabase.from('taken').delete().in('id', ids);
+        });
+      }
 
       el.querySelectorAll('[data-role="toggle-taak"]').forEach(btn => {
         btn.addEventListener('click', async () => {
