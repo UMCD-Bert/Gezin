@@ -264,6 +264,22 @@
     background: var(--accent); color: #fff; border: none; border-radius: 100px;
     font-size: 12px; padding: 6px 12px; cursor: pointer; white-space: nowrap; flex-shrink: 0;
   }
+  .subtaak-inline-row { display: flex; align-items: center; gap: 8px; padding: 4px 0 4px 30px; font-size: 13px; }
+  .subtaak-inline-row .subtaak-connector { color: var(--muted); font-size: 14px; width: 16px; text-align: center; flex-shrink: 0; }
+  .subtaak-inline-row.afgevinkt .titel { text-decoration: line-through; color: var(--muted); }
+  .checkbox.subtaak-checkbox { width: 18px; height: 18px; font-size: 10px; flex-shrink: 0; }
+  .subtaak-add-affordance { display: flex; align-items: center; gap: 8px; padding: 2px 0 8px 30px; }
+  .subtaak-add-link {
+    background: none; border: none; color: var(--muted); font-size: 12px; cursor: pointer; padding: 0;
+  }
+  .subtaak-add-link:hover { color: var(--accent); }
+  .subtaak-add-invoer-rij { align-items: center; gap: 6px; padding: 4px 0 8px 30px; }
+  .subtaak-add-invoer-rij .subtaak-connector { color: var(--muted); font-size: 14px; width: 16px; text-align: center; flex-shrink: 0; }
+  .subtaak-inline-input { flex: 1; padding: 6px 10px; font-size: 13px; }
+  .subtaak-inline-add-btn {
+    background: var(--accent); color: #fff; border: none; border-radius: 6px;
+    font-size: 14px; padding: 4px 10px; cursor: pointer; flex-shrink: 0;
+  }
   .subtaak-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
   .subtaak-row .checkbox { flex-shrink: 0; }
   .subtaak-row .titel { flex: 1; font-size: 14px; }
@@ -639,7 +655,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.15';
+const APP_VERSIE = 'v0.17';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -686,7 +702,7 @@ const BETROKKENE_ICONEN = {
 // Vaste, voorgedefinieerde categorieën — volgorde bepaalt sortering.
 // Volgt de looproute door de supermarkt.
 const CATEGORIEEN = [
-  'Groente en fruit', 'Broodbeleg', 'Buitenlands', 'Diervoeding', 'Huishouden',
+  'Groente en fruit', 'Vlees en vis', 'Broodbeleg', 'Buitenlands', 'Diervoeding', 'Huishouden',
   'Conserven', 'Broodafdeling', 'Zuivel', 'Dranken', 'Chips en nootjes',
   'Snoep en koek', 'Diepvries', 'Overig',
 ];
@@ -2085,6 +2101,27 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         const actieKnop = taak.sjabloon
           ? `<button class="sjabloon-restart-btn" data-role="reset-sjabloon" data-id="${taak.id}">🔁 Opnieuw starten</button>`
           : `<div class="checkbox" data-role="toggle-taak" data-id="${taak.id}" style="${heeftSubtaken ? 'opacity:0.4; cursor:default;' : ''}">${taak.afgevinkt ? '✓' : ''}</div>`;
+
+        const subtakenHtml = subs.map(s => `
+          <div class="subtaak-inline-row ${s.afgevinkt ? 'afgevinkt' : ''}" data-id="${s.id}">
+            <span class="subtaak-connector">↳</span>
+            <div class="checkbox subtaak-checkbox" data-role="toggle-subtaak-inline" data-id="${s.id}" data-taak-id="${taak.id}">${s.afgevinkt ? '✓' : ''}</div>
+            <span class="titel">${escapeHtml(s.titel)}</span>
+          </div>
+        `).join('');
+
+        const subtaakAddHtml = `
+          <div class="subtaak-add-affordance" data-taak-id="${taak.id}">
+            <span class="subtaak-connector">↳</span>
+            <button class="subtaak-add-link" data-role="toon-subtaak-invoer" data-taak-id="${taak.id}">+ subtaak</button>
+          </div>
+          <div class="subtaak-add-invoer-rij" data-taak-id="${taak.id}" style="display:none;">
+            <span class="subtaak-connector">↳</span>
+            <input type="text" class="subtaak-inline-input" placeholder="Nieuwe subtaak" data-taak-id="${taak.id}">
+            <button class="subtaak-inline-add-btn" data-role="voeg-subtaak-inline-toe" data-taak-id="${taak.id}">+</button>
+          </div>
+        `;
+
         return `
           <div class="taak-item ${taak.afgevinkt ? 'afgevinkt' : ''}" data-id="${taak.id}">
             ${actieKnop}
@@ -2096,6 +2133,8 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
             ${renderActiehouderBadges(taak.actiehouders)}
             <button class="edit-btn" data-role="edit-taak" data-id="${taak.id}" title="Bewerken">✏️</button>
           </div>
+          ${subtakenHtml}
+          ${subtaakAddHtml}
         `;
       }
 
@@ -2145,6 +2184,56 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           await supabase.from('taken').update(resetPayload.hoofdtaakChanges).eq('id', taak.id);
           for (const subId of resetPayload.subtaakIds) {
             await supabase.from('taken_subtaken').update({ afgevinkt: false }).eq('id', subId);
+          }
+        });
+      });
+
+      // --- Subtaken direct in de hoofdlijst: afvinken + subtiel toevoegen ---
+      el.querySelectorAll('[data-role="toggle-subtaak-inline"]').forEach(checkboxEl => {
+        checkboxEl.addEventListener('click', async () => {
+          await toggleSubtaakEnHoofdtaak(checkboxEl.getAttribute('data-id'));
+        });
+      });
+      el.querySelectorAll('[data-role="toon-subtaak-invoer"]').forEach(link => {
+        link.addEventListener('click', () => {
+          const taakId = link.getAttribute('data-taak-id');
+          const affordance = el.querySelector(`.subtaak-add-affordance[data-taak-id="${taakId}"]`);
+          const invoerRij = el.querySelector(`.subtaak-add-invoer-rij[data-taak-id="${taakId}"]`);
+          if (affordance) affordance.style.display = 'none';
+          if (invoerRij) {
+            invoerRij.style.display = 'flex';
+            const input = invoerRij.querySelector('.subtaak-inline-input');
+            if (input) input.focus();
+          }
+        });
+      });
+      el.querySelectorAll('[data-role="voeg-subtaak-inline-toe"]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const taakIdAttr = btn.getAttribute('data-taak-id');
+          const taak = taken.find(t => String(t.id) === String(taakIdAttr));
+          if (!taak) return;
+          const invoerRij = el.querySelector(`.subtaak-add-invoer-rij[data-taak-id="${taakIdAttr}"]`);
+          const input = invoerRij ? invoerRij.querySelector('.subtaak-inline-input') : null;
+          if (!input) return;
+          let payload;
+          try {
+            payload = GezinTaken.buildSubtaakInsertPayload({ titel: input.value });
+          } catch (err) {
+            alert(err.message);
+            return;
+          }
+          // taak.id gebruiken (niet de string-attribuutwaarde) — zelfde type als
+          // overal elders, anders matcht het filteren op subtaken straks niet meer.
+          const { error } = await supabase.from('taken_subtaken').insert({ ...payload, taak_id: taak.id });
+          if (error) { alert('Kon subtaak niet toevoegen: ' + error.message); return; }
+          input.value = '';
+        });
+      });
+      el.querySelectorAll('.subtaak-inline-input').forEach(input => {
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            const taakId = input.getAttribute('data-taak-id');
+            el.querySelector(`[data-role="voeg-subtaak-inline-toe"][data-taak-id="${taakId}"]`).click();
           }
         });
       });
@@ -2213,6 +2302,21 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       editingTaakId = null;
     });
 
+    // Gedeeld tussen de hoofdlijst (nieuw, inline) en het detailmodal: afvinken
+    // van één subtaak + de symmetrische hoofdtaak-regel toepassen.
+    async function toggleSubtaakEnHoofdtaak(subId) {
+      const sub = subtaken.find(s => String(s.id) === String(subId));
+      if (!sub) return;
+      await supabase.from('taken_subtaken').update({ afgevinkt: !sub.afgevinkt }).eq('id', sub.id);
+      const bijgewerkteSubs = subtaken
+        .filter(s => s.taak_id === sub.taak_id)
+        .map(s => (s.id === sub.id ? { ...s, afgevinkt: !sub.afgevinkt } : s));
+      const nieuweHoofdtaakStatus = GezinTaken.bepaalHoofdtaakStatusNaSubtaakToggle(bijgewerkteSubs);
+      if (nieuweHoofdtaakStatus !== null) {
+        await supabase.from('taken').update({ afgevinkt: nieuweHoofdtaakStatus }).eq('id', sub.taak_id);
+      }
+    }
+
     function renderSubtakenLijst() {
       const el = document.getElementById('subtaken-lijst');
       if (editingTaakId == null) { el.innerHTML = ''; return; }
@@ -2227,16 +2331,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       el.querySelectorAll('[data-role="toggle-subtaak"]').forEach(checkboxEl => {
         checkboxEl.addEventListener('click', async () => {
           const id = checkboxEl.closest('.subtaak-row').getAttribute('data-id');
-          const sub = subtaken.find(s => String(s.id) === String(id));
-          if (!sub) return;
-          await supabase.from('taken_subtaken').update({ afgevinkt: !sub.afgevinkt }).eq('id', sub.id);
-          const bijgewerkteSubs = subtaken
-            .filter(s => s.taak_id === sub.taak_id)
-            .map(s => (s.id === sub.id ? { ...s, afgevinkt: !sub.afgevinkt } : s));
-          const nieuweHoofdtaakStatus = GezinTaken.bepaalHoofdtaakStatusNaSubtaakToggle(bijgewerkteSubs);
-          if (nieuweHoofdtaakStatus !== null) {
-            await supabase.from('taken').update({ afgevinkt: nieuweHoofdtaakStatus }).eq('id', sub.taak_id);
-          }
+          await toggleSubtaakEnHoofdtaak(id);
         });
       });
       el.querySelectorAll('[data-role="delete-subtaak"]').forEach(btn => {
