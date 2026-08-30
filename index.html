@@ -348,55 +348,59 @@
     <button class="fab-add-btn" id="open-afspraak-add-modal" title="Nieuwe afspraak">+</button>
   </section>
 
-  <section id="tab-content-taken" class="tab-content" style="display:none;">
-    <div class="add-bar">
-      <div class="add-form">
-        <div class="add-row">
-          <input id="taak-titel-input" type="text" placeholder="Titel taak">
-        </div>
-        <div class="add-row">
-          <input id="taak-deadline-input" type="date" placeholder="Deadline (optioneel)">
-        </div>
-        <div class="betrokkenen-form-titel">Actiehouder (optioneel)</div>
-        <div class="betrokkenen-kies" id="taak-actiehouders-kies"></div>
-        <div class="add-row" style="align-items:center; margin-top:6px;">
-          <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;">
-            <input type="checkbox" id="taak-sjabloon-checkbox"> Sjabloon (bijv. paklijst — herbruikbaar via "Opnieuw starten")
-          </label>
-        </div>
-        <div class="add-row">
-          <button class="btn-add" id="taak-add-btn" title="Toevoegen" style="width:100%;">+ Toevoegen</button>
-        </div>
-      </div>
-    </div>
-
+  <section id="tab-content-taken" class="tab-content" style="display:none; position:relative;">
     <div id="taken-lijst"></div>
+
+    <button class="fab-add-btn" id="open-taak-add-modal" title="Nieuwe taak">+</button>
   </section>
 
-  <section id="tab-content-recepten" class="tab-content" style="display:none;">
-    <div class="add-bar">
-      <div class="add-form">
-        <div class="add-row">
-          <input id="recept-titel-input" type="text" placeholder="Titel recept">
-        </div>
-        <div class="add-row">
-          <textarea id="recept-bereidingswijze-input" placeholder="Bereidingswijze (optioneel)" rows="3" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-size:15px; font-family:inherit; resize:vertical;"></textarea>
-        </div>
-        <div class="add-row">
-          <input id="recept-bron-url-input" type="text" placeholder="Bron-URL (optioneel)">
-        </div>
-        <div class="add-row">
-          <input id="recept-kookboek-titel-input" type="text" placeholder="Kookboek (optioneel)">
-          <input id="recept-kookboek-pagina-input" type="text" placeholder="Pagina">
-        </div>
-        <div class="add-row">
-          <button class="btn-add" id="recept-add-btn" title="Toevoegen" style="width:100%;">+ Recept aanmaken</button>
-        </div>
+  <div class="modal-overlay" id="taak-add-modal-overlay">
+    <div class="modal">
+      <button class="modal-close" id="close-taak-add-modal">✕</button>
+      <h2>Nieuwe taak</h2>
+      <div class="add-row">
+        <input id="taak-titel-input" type="text" placeholder="Titel taak">
       </div>
+      <div class="add-row">
+        <input id="taak-deadline-input" type="date" placeholder="Deadline (optioneel)">
+      </div>
+      <div class="betrokkenen-form-titel">Actiehouder (optioneel)</div>
+      <div class="betrokkenen-kies" id="taak-actiehouders-kies"></div>
+      <div class="add-row" style="align-items:center; margin-top:6px;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;">
+          <input type="checkbox" id="taak-sjabloon-checkbox"> Sjabloon (bijv. paklijst — herbruikbaar via "Opnieuw starten")
+        </label>
+      </div>
+      <button class="btn-add" id="taak-add-btn" title="Toevoegen" style="width:100%; margin-top:8px;">+ Toevoegen</button>
     </div>
+  </div>
 
+  <section id="tab-content-recepten" class="tab-content" style="display:none; position:relative;">
     <div id="recepten-lijst"></div>
+
+    <button class="fab-add-btn" id="open-recept-add-modal" title="Nieuw recept">+</button>
   </section>
+
+  <div class="modal-overlay" id="recept-add-modal-overlay">
+    <div class="modal">
+      <button class="modal-close" id="close-recept-add-modal">✕</button>
+      <h2>Nieuw recept</h2>
+      <div class="add-row">
+        <input id="recept-titel-input" type="text" placeholder="Titel recept">
+      </div>
+      <div class="add-row">
+        <textarea id="recept-bereidingswijze-input" placeholder="Bereidingswijze (optioneel)" rows="3" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-size:15px; font-family:inherit; resize:vertical;"></textarea>
+      </div>
+      <div class="add-row">
+        <input id="recept-bron-url-input" type="text" placeholder="Bron-URL (optioneel)">
+      </div>
+      <div class="add-row">
+        <input id="recept-kookboek-titel-input" type="text" placeholder="Kookboek (optioneel)">
+        <input id="recept-kookboek-pagina-input" type="text" placeholder="Pagina">
+      </div>
+      <button class="btn-add" id="recept-add-btn" title="Toevoegen" style="width:100%; margin-top:8px;">+ Recept aanmaken</button>
+    </div>
+  </div>
 </main>
 
 <div class="modal-overlay" id="recept-detail-modal-overlay">
@@ -620,7 +624,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.12';
+const APP_VERSIE = 'v0.13';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -1283,6 +1287,10 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         btn.classList.add('active');
         document.querySelectorAll('.tab-content').forEach(sec => { sec.style.display = 'none'; });
         document.getElementById('tab-content-' + btn.getAttribute('data-tab')).style.display = '';
+        if (btn.getAttribute('data-tab') === 'kalender') {
+          moetScrollenNaarVandaag = true;
+          scrollNaarVandaagIndienNodig();
+        }
       });
     });
 
@@ -1570,6 +1578,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     const vandaag = new Date();
     let bekekenJaar = vandaag.getFullYear();
     let bekekenMaand = vandaag.getMonth(); // 0-indexed
+    let moetScrollenNaarVandaag = true; // bij landen op de huidige maand: "vandaag" direct in beeld, niet pas na scrollen
 
     const maandLabelEl = document.getElementById('maand-label');
     const agendaLijstEl = document.getElementById('agenda-lijst');
@@ -1676,7 +1685,6 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 
     function formatTijdWeergave(item) {
       if (item.type === 'verjaardag') return '🎂';
-      if (item.type === 'taak') return '✅';
       if (!item.tijd) return '';
       return item.eindtijd ? `${item.tijd} - ${item.eindtijd}` : item.tijd;
     }
@@ -1717,14 +1725,17 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       dagen = GezinKalender.filterAgendaOpBetrokkenen(dagen, actieveFilterKeys);
       if (dagen.length === 0) {
         agendaLijstEl.innerHTML = '<div class="empty-state">Geen afspraken deze maand 🎉</div>';
+        moetScrollenNaarVandaag = false;
         return;
       }
       agendaLijstEl.innerHTML = dagen.map(dag => `
-        <div class="agenda-dag-groep ${dag.verleden ? 'verleden' : ''}">
+        <div class="agenda-dag-groep ${dag.verleden ? 'verleden' : ''}" data-datum="${dag.datum}">
           <div class="agenda-dag-titel">${formatDagTitel(dag.datum)}</div>
           ${dag.items.map(item => `
             <div class="agenda-item ${item.type === 'verjaardag' ? 'verjaardag' : ''}" ${item.type === 'afspraak' ? `data-id="${item.id}"` : ''}>
-              <span class="tijd">${formatTijdWeergave(item)}</span>
+              ${item.type === 'taak'
+                ? `<div class="checkbox" data-role="toggle-taak-kalender" data-id="${item.id}" style="${(taken.find(t => t.id === item.id) && subtaken.some(s => s.taak_id === item.id)) ? 'opacity:0.4; cursor:default;' : ''}"></div>`
+                : `<span class="tijd">${formatTijdWeergave(item)}</span>`}
               <span class="titel">${item.type === 'afspraak' && item.reeks_id ? '🔁 ' : ''}${escapeHtml(item.titel)}</span>
               ${item.type === 'afspraak' ? renderBetrokkeneBadges(item.betrokkenen) : ''}
               ${item.type === 'taak' ? renderBetrokkeneBadges(item.actiehouders) : ''}
@@ -1741,6 +1752,33 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           if (afspraak) openAfspraakEditModal(afspraak);
         });
       });
+
+      agendaLijstEl.querySelectorAll('[data-role="toggle-taak-kalender"]').forEach(el => {
+        el.addEventListener('click', async () => {
+          const id = el.getAttribute('data-id');
+          const taak = taken.find(t => String(t.id) === String(id));
+          if (!taak) return;
+          if (subtaken.some(s => s.taak_id === taak.id)) return; // read-only zolang er subtaken zijn — zelfde regel als op de Taken-tab
+          await supabase.from('taken').update({ afgevinkt: true }).eq('id', taak.id);
+        });
+      });
+
+      scrollNaarVandaagIndienNodig();
+    }
+
+    // Zorgt dat bij het landen op de huidige maand "vandaag" meteen in beeld
+    // staat i.p.v. bovenaan de maand (verleden dagen) — terugscrollen naar het
+    // verleden blijft gewoon mogelijk, alleen de eerste blik toont niet-oud nieuws.
+    function scrollNaarVandaagIndienNodig() {
+      if (!moetScrollenNaarVandaag) return;
+      const isHuidigeMaand = bekekenJaar === vandaag.getFullYear() && bekekenMaand === vandaag.getMonth();
+      if (!isHuidigeMaand) return;
+      const vandaagIso = GezinKalender.toIsoDate(vandaag);
+      const vandaagGroep = agendaLijstEl.querySelector(`[data-datum="${vandaagIso}"]`);
+      if (vandaagGroep && typeof vandaagGroep.scrollIntoView === 'function') {
+        vandaagGroep.scrollIntoView({ block: 'start' });
+      }
+      moetScrollenNaarVandaag = false;
     }
 
 
@@ -1764,6 +1802,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     document.getElementById('maand-vandaag').addEventListener('click', () => {
       bekekenJaar = vandaag.getFullYear();
       bekekenMaand = vandaag.getMonth();
+      moetScrollenNaarVandaag = true;
       renderAgenda();
     });
 
@@ -2084,6 +2123,12 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       });
     }
 
+    document.getElementById('open-taak-add-modal').addEventListener('click', () => {
+      document.getElementById('taak-add-modal-overlay').classList.add('open');
+    });
+    document.getElementById('close-taak-add-modal').addEventListener('click', () => {
+      document.getElementById('taak-add-modal-overlay').classList.remove('open');
+    });
     document.getElementById('taak-add-btn').addEventListener('click', async () => {
       let payload;
       try {
@@ -2103,6 +2148,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       document.getElementById('taak-deadline-input').value = '';
       document.getElementById('taak-sjabloon-checkbox').checked = false;
       taakActiehoudersKies.reset();
+      document.getElementById('taak-add-modal-overlay').classList.remove('open');
     });
 
     // --- Taak-detailmodal: bewerken + subtaken beheren ---
@@ -2248,6 +2294,12 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       });
     }
 
+    document.getElementById('open-recept-add-modal').addEventListener('click', () => {
+      document.getElementById('recept-add-modal-overlay').classList.add('open');
+    });
+    document.getElementById('close-recept-add-modal').addEventListener('click', () => {
+      document.getElementById('recept-add-modal-overlay').classList.remove('open');
+    });
     document.getElementById('recept-add-btn').addEventListener('click', async () => {
       let payload;
       try {
@@ -2269,6 +2321,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       document.getElementById('recept-bron-url-input').value = '';
       document.getElementById('recept-kookboek-titel-input').value = '';
       document.getElementById('recept-kookboek-pagina-input').value = '';
+      document.getElementById('recept-add-modal-overlay').classList.remove('open');
       // Meteen doorschakelen naar het detailmodal, zodat ingrediënten/foto's
       // direct toegevoegd kunnen worden zonder terug te hoeven naar de lijst.
       if (data && data[0]) openReceptDetailModal(data[0]);
