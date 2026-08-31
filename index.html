@@ -208,6 +208,17 @@
     box-shadow: 0 3px 10px rgba(0,0,0,0.25); cursor: pointer;
   }
 
+  .toast {
+    position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%) translateY(20px);
+    background: #1c1e21; color: #fff; padding: 10px 18px; border-radius: 100px;
+    font-size: 14px; z-index: 100; opacity: 0; pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease; max-width: 90vw; text-align: center;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+  }
+  .toast.zichtbaar { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .item-pending-badge { font-size: 13px; flex-shrink: 0; }
+
   .betrokkenen-filter-rij { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
   .betrokkene-filter-chip {
     display: flex; align-items: center; gap: 6px; border: 1.5px solid var(--border);
@@ -335,30 +346,34 @@
 </nav>
 
 <main>
-  <section id="tab-content-boodschappen" class="tab-content">
-    <div class="add-bar">
-      <div class="add-form">
-        <div class="add-row">
-          <div class="combo-wrap">
-            <input id="naam-input" type="text" placeholder="Wat heb je nodig?" autocomplete="off">
-            <div id="suggestions" class="suggestions" style="display:none;"></div>
-          </div>
-          <button class="btn-add" id="add-btn" title="Toevoegen">+</button>
-        </div>
-        <div class="add-row detail-row">
-          <input id="detail-input" type="text" placeholder="Aantal/gewicht (optioneel)">
-          <input id="winkel-input" type="text" placeholder="Winkel (optioneel)">
-        </div>
-        <div class="add-row">
-          <select id="categorie-select"></select>
-        </div>
-      </div>
-    </div>
-
+  <section id="tab-content-boodschappen" class="tab-content" style="position:relative;">
     <div id="lijst"></div>
 
     <div class="vaste-artikelen-link" id="open-vaste-artikelen">⚙️ Vaste artikelen beheren</div>
+
+    <button class="fab-add-btn" id="open-boodschap-add-modal" title="Item toevoegen">+</button>
   </section>
+
+  <div class="modal-overlay" id="boodschap-add-modal-overlay">
+    <div class="modal">
+      <button class="modal-close" id="close-boodschap-add-modal">✕</button>
+      <h2>Item toevoegen</h2>
+      <div class="add-row">
+        <div class="combo-wrap">
+          <input id="naam-input" type="text" placeholder="Wat heb je nodig?" autocomplete="off">
+          <div id="suggestions" class="suggestions" style="display:none;"></div>
+        </div>
+      </div>
+      <div class="add-row detail-row">
+        <input id="detail-input" type="text" placeholder="Aantal/gewicht (optioneel)">
+        <input id="winkel-input" type="text" placeholder="Winkel (optioneel)">
+      </div>
+      <div class="add-row">
+        <select id="categorie-select"></select>
+      </div>
+      <button class="btn-add" id="add-btn" title="Toevoegen" style="width:100%;">+ Toevoegen</button>
+    </div>
+  </div>
 
   <section id="tab-content-kalender" class="tab-content" style="display:none; position:relative;">
     <div class="maand-strip">
@@ -649,13 +664,15 @@
   </div>
 </div>
 
+<div id="toast" class="toast"></div>
+
 <script>
 // ---------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.17';
+const APP_VERSIE = 'v0.18';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -814,11 +831,25 @@ const GezinBoodschappen = (function () {
     return { type: 'update', id: item.id, changes: { afgevinkt: false, afgevinkt_op: null } };
   }
 
+  // Past een toggle "optimistisch" toe op een lokale kopie van de lijst — voor
+  // direct zichtbare feedback (ook zonder netwerk), los van de daadwerkelijke
+  // Supabase-aanroep die er los naast op de achtergrond gebeurt.
+  function toepassenOptimistischeToggle(items, item) {
+    const action = toggleAction(item);
+    const nieuweItems = action.type === 'delete'
+      ? items.filter(i => i.id !== item.id)
+      : items.map(i => (i.id === item.id ? { ...i, ...action.changes } : i));
+    return { nieuweItems, action };
+  }
+
   function cleanupExpired(items, now = Date.now()) {
     return items.filter(i => isExpiredIncidenteel(i, now)).map(i => i.id);
   }
 
-  return { sortItems, isExpiredIncidenteel, filterSuggestions, findActiveDuplicate, buildInsertPayload, buildUpdatePayload, buildVastArtikelUpdatePayload, toggleAction, cleanupExpired, CATEGORIEEN };
+  return {
+    sortItems, isExpiredIncidenteel, filterSuggestions, findActiveDuplicate, buildInsertPayload, buildUpdatePayload,
+    buildVastArtikelUpdatePayload, toggleAction, toepassenOptimistischeToggle, cleanupExpired, CATEGORIEEN,
+  };
 })();
 
 // ---------------------------------------------------------------
@@ -1299,6 +1330,67 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     let vasteArtikelen = [];
     let selectedVastArtikel = null;
 
+    // --- Toast: kort, onopvallend meldingsbalkje onderaan het scherm ---
+    let toastTimeoutId = null;
+    function toonToast(bericht) {
+      const el = document.getElementById('toast');
+      if (!el) return;
+      el.textContent = bericht;
+      el.classList.add('zichtbaar');
+      if (toastTimeoutId) clearTimeout(toastTimeoutId);
+      toastTimeoutId = setTimeout(() => { el.classList.remove('zichtbaar'); }, 2000);
+    }
+
+    // --- Offline-vriendelijke, "optimistische" boodschappenlijst-toggle ---
+    // Bij het afvinken/uitvinken wordt de lokale weergave METEEN bijgewerkt,
+    // ongeacht netwerkbereik. De echte Supabase-aanroep wordt bewaard in een
+    // wachtrij die in localStorage staat (overleeft dus een herlaad/app-sluit)
+    // en telkens opnieuw geprobeerd wordt tot hij lukt.
+    const PENDING_QUEUE_KEY = 'gezin_boodschappen_pending_toggles';
+    let pendingToggleQueue = [];
+    try {
+      pendingToggleQueue = JSON.parse(localStorage.getItem(PENDING_QUEUE_KEY) || '[]');
+    } catch (e) {
+      pendingToggleQueue = [];
+    }
+    function savePendingQueue() {
+      try {
+        localStorage.setItem(PENDING_QUEUE_KEY, JSON.stringify(pendingToggleQueue));
+      } catch (e) { /* localStorage niet beschikbaar (bijv. privémodus) — queue blijft dan alleen in-memory */ }
+    }
+    function isPending(itemId) {
+      return pendingToggleQueue.some(q => String(q.itemId) === String(itemId));
+    }
+
+    async function verwerkPendingQueue() {
+      if (pendingToggleQueue.length === 0) return;
+      const wachtrijNu = [...pendingToggleQueue];
+      for (const entry of wachtrijNu) {
+        try {
+          let error;
+          if (entry.action.type === 'delete') {
+            ({ error } = await supabase.from('boodschappen_items').delete().eq('id', entry.action.id));
+          } else {
+            ({ error } = await supabase.from('boodschappen_items').update(entry.action.changes).eq('id', entry.action.id));
+          }
+          if (error) {
+            // Verzoek is wél bij de server aangekomen, maar geweigerd — dit is
+            // geen netwerkprobleem meer, dus niet blijven herhalen.
+            alert('Kon een afvink-actie niet verwerken: ' + error.message);
+            pendingToggleQueue = pendingToggleQueue.filter(q => q !== entry);
+            savePendingQueue();
+            continue;
+          }
+          // Gelukt: uit de wachtrij, geen pending-badge meer nodig.
+          pendingToggleQueue = pendingToggleQueue.filter(q => q !== entry);
+          savePendingQueue();
+          render();
+        } catch (netwerkFout) {
+          // Waarschijnlijk geen bereik — laten staan, later opnieuw proberen.
+        }
+      }
+    }
+
     const naamInput = document.getElementById('naam-input');
     const suggestionsBox = document.getElementById('suggestions');
     const detailInput = document.getElementById('detail-input');
@@ -1366,6 +1458,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       }
       const { error } = await supabase.from('boodschappen_items').insert(payload);
       if (error) { alert('Kon niet toevoegen: ' + error.message); return false; }
+      toonToast(`✓ ${payload.naam} toegevoegd aan boodschappenlijst`);
       return true;
     }
 
@@ -1390,17 +1483,28 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       winkelInput.value = '';
       selectedVastArtikel = null;
       naamInput.focus();
+      document.getElementById('boodschap-add-modal-overlay').classList.remove('open');
     }
     addBtn.addEventListener('click', addItem);
     naamInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addItem(); });
 
-    async function toggleItem(item) {
-      const action = GezinBoodschappen.toggleAction(item);
-      if (action.type === 'delete') {
-        await supabase.from('boodschappen_items').delete().eq('id', action.id);
-      } else {
-        await supabase.from('boodschappen_items').update(action.changes).eq('id', action.id);
-      }
+    document.getElementById('open-boodschap-add-modal').addEventListener('click', () => {
+      document.getElementById('boodschap-add-modal-overlay').classList.add('open');
+      naamInput.focus();
+    });
+    document.getElementById('close-boodschap-add-modal').addEventListener('click', () => {
+      document.getElementById('boodschap-add-modal-overlay').classList.remove('open');
+    });
+
+    // Afvinken/uitvinken: lokaal meteen doorvoeren (optimistic), de echte
+    // Supabase-aanroep gaat via de persistente wachtrij hierboven.
+    function toggleItem(item) {
+      const { nieuweItems, action } = GezinBoodschappen.toepassenOptimistischeToggle(items, item);
+      items = nieuweItems;
+      pendingToggleQueue.push({ itemId: item.id, action });
+      savePendingQueue();
+      render();
+      verwerkPendingQueue();
     }
 
     // --- Item bewerken ---
@@ -1469,6 +1573,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
                 <div class="item-main" data-role="toggle">
                   <div class="item-naam">${escapeHtml(item.naam)}${item.detail ? ' — ' + escapeHtml(item.detail) : ''}</div>
                 </div>
+                ${isPending(item.id) ? '<span class="item-pending-badge" title="Nog niet bevestigd door de server">⏳</span>' : ''}
                 ${item.winkel ? `<span class="badge-winkel">${escapeHtml(item.winkel)}</span>` : ''}
                 <button class="edit-btn" data-role="edit" title="Bewerken">✏️</button>
               </li>
@@ -1496,10 +1601,24 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
+    // Past elke nog-niet-bevestigde wachtrij-actie opnieuw toe op verse data —
+    // nodig omdat een reload of een realtime-refresh anders een nog-openstaand
+    // vinkje tijdelijk "terug zou laten springen" totdat de wachtrij slaagt.
+    function toepassenWachtrijOpItems() {
+      for (const entry of pendingToggleQueue) {
+        if (entry.action.type === 'delete') {
+          items = items.filter(i => i.id !== entry.action.id);
+        } else {
+          items = items.map(i => (i.id === entry.action.id ? { ...i, ...entry.action.changes } : i));
+        }
+      }
+    }
+
     async function loadItems() {
       const { data, error } = await supabase.from('boodschappen_items').select('*');
       if (error) { console.error(error); return; }
       items = data || [];
+      toepassenWachtrijOpItems();
       render();
     }
 
@@ -2700,6 +2819,9 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       await loadVasteArtikelen();
       await cleanupExpiredItems();
       await loadItems();
+      // Openstaande afvink-acties van een vorige sessie (bijv. supermarkt zonder
+      // bereik, tab daarna gesloten/ververst) alsnog proberen te verwerken.
+      verwerkPendingQueue();
       await verlengActieveReeksen();
       await loadAfspraken();
       await loadVerjaardagen();
@@ -2711,6 +2833,11 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       await loadFotos();
       subscribeRealtime();
     })();
+
+    // Zodra de telefoon weer bereik heeft, meteen de wachtrij proberen te legen
+    // — plus een periodieke vangnet-poging, voor het geval dat event niet vuurt.
+    window.addEventListener('online', () => { verwerkPendingQueue(); });
+    setInterval(() => { verwerkPendingQueue(); }, 20000);
   })();
 }
 </script>
