@@ -715,7 +715,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.20';
+const APP_VERSIE = 'v0.21';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -1413,18 +1413,34 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       return pendingToggleQueue.some(q => String(q.itemId) === String(itemId));
     }
 
+    // Een mislukte fetch (geen bereik) geeft bij supabase-js GEEN gegooide
+    // exception, maar komt terug als { error, status: 0 } — dus puur op
+    // "is er een error" filteren zou een netwerkstoring ten onrechte als
+    // permanente serverfout behandelen (vinkje weer terugzetten + alert,
+    // terwijl er straks weer bereik is). status 0/ontbrekend of een
+    // TypeError (fetch-foutmelding, "Load failed"/"Failed to fetch") wijst op
+    // geen bereik; alleen een écht ontvangen HTTP-statuscode is een
+    // serverbeslissing waar herhalen niets aan verandert.
+    function isNetwerkFout(error, status) {
+      return !status || error instanceof TypeError;
+    }
+
     async function verwerkPendingQueue() {
       if (pendingToggleQueue.length === 0) return;
       const wachtrijNu = [...pendingToggleQueue];
       for (const entry of wachtrijNu) {
         try {
-          let error;
+          let error, status;
           if (entry.action.type === 'delete') {
-            ({ error } = await supabase.from('boodschappen_items').delete().eq('id', entry.action.id));
+            ({ error, status } = await supabase.from('boodschappen_items').delete().eq('id', entry.action.id));
           } else {
-            ({ error } = await supabase.from('boodschappen_items').update(entry.action.changes).eq('id', entry.action.id));
+            ({ error, status } = await supabase.from('boodschappen_items').update(entry.action.changes).eq('id', entry.action.id));
           }
           if (error) {
+            if (isNetwerkFout(error, status)) {
+              // Waarschijnlijk geen bereik — laten staan, later opnieuw proberen.
+              continue;
+            }
             // Verzoek is wél bij de server aangekomen, maar geweigerd — dit is
             // geen netwerkprobleem meer, dus niet blijven herhalen.
             alert('Kon een afvink-actie niet verwerken: ' + error.message);
