@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#DCEEF7"/>
+      <stop offset="100%" stop-color="#BFE0EF"/>
+    </linearGradient>
+    <linearGradient id="orange" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFA34D"/>
+      <stop offset="100%" stop-color="#F2650A"/>
+    </linearGradient>
+
+    <g id="rWing">
+      <!-- hindwing -->
+      <path d="M 253,278 C 273,258 313,253 348,268 C 383,283 398,318 383,353 C 368,386 328,401 293,395 C 263,390 246,363 246,328 C 246,308 248,291 253,278 Z"
+            fill="#FFFDF8" stroke="#241F1C" stroke-width="4"/>
+      <ellipse cx="285" cy="315" rx="24" ry="14" fill="#9CB587" opacity="0.45" transform="rotate(-10 285 315)"/>
+      <ellipse cx="340" cy="340" rx="18" ry="11" fill="#8CA377" opacity="0.4" transform="rotate(8 340 340)"/>
+      <ellipse cx="300" cy="360" rx="13" ry="8" fill="#9CB587" opacity="0.35"/>
+
+      <!-- forewing outline -->
+      <path d="M 262,225 C 285,190 305,160 345,148 C 375,140 405,142 425,163 C 442,182 440,205 428,222 C 415,240 393,252 365,258 C 335,264 305,258 280,245 C 270,239 264,232 262,225 Z"
+            fill="#FFFDF8" stroke="#241F1C" stroke-width="4"/>
+
+      <!-- orange tip patch -->
+      <path d="M 350,150 C 380,140 405,142 425,163 C 442,182 440,205 428,222 C 415,240 400,247 385,248 C 365,230 350,200 350,150 Z"
+            fill="url(#orange)" stroke="#241F1C" stroke-width="4" stroke-linejoin="round"/>
+
+      <!-- speckled margin dots on tip -->
+      <circle cx="392" cy="146" r="4.5" fill="#241F1C"/>
+      <circle cx="414" cy="153" r="4.5" fill="#241F1C"/>
+      <circle cx="430" cy="170" r="4.5" fill="#241F1C"/>
+      <circle cx="434" cy="192" r="4.5" fill="#241F1C"/>
+      <circle cx="425" cy="212" r="4.5" fill="#241F1C"/>
+      <circle cx="408" cy="228" r="4" fill="#241F1C"/>
+
+      <!-- eyespot -->
+      <circle cx="346" cy="196" r="12" fill="#FFFDF8"/>
+      <circle cx="346" cy="196" r="9.5" fill="#1A1512"/>
+      <circle cx="349" cy="193" r="2.5" fill="#F2650A" opacity="0.85"/>
+    </g>
+  </defs>
+
+  <!-- background -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <ellipse cx="256" cy="424" rx="118" ry="16" fill="#9FC6DC" opacity="0.3"/>
+
+  <!-- wings: right then mirrored left -->
+  <use href="#rWing"/>
+  <use href="#rWing" transform="translate(512,0) scale(-1,1)"/>
+
+  <!-- antennae -->
+  <path d="M 262,207 C 290,190 320,185 340,196" fill="none" stroke="#1A1512" stroke-width="5" stroke-linecap="round"/>
+  <ellipse cx="341" cy="197" rx="7" ry="5" fill="#1A1512" transform="rotate(20 341 197)"/>
+  <path d="M 250,207 C 222,190 192,185 172,196" fill="none" stroke="#1A1512" stroke-width="5" stroke-linecap="round"/>
+  <ellipse cx="171" cy="197" rx="7" ry="5" fill="#1A1512" transform="rotate(-20 171 197)"/>
+
+  <!-- head -->
+  <circle cx="256" cy="207" r="15" fill="#1A1512"/>
+
+  <!-- body -->
+  <path d="M 256,199 C 271,199 280,220 278,252 C 276,283 271,314 262,335 C 259,343 253,343 250,335 C 241,314 236,283 234,252 C 232,220 241,199 256,199 Z"
+        fill="#1A1512"/>
+  <!-- fuzzy hair texture -->
+  <circle cx="247" cy="216" r="2" fill="#E7E2DA" opacity="0.7"/>
+  <circle cx="266" cy="224" r="2" fill="#E7E2DA" opacity="0.7"/>
+  <circle cx="252" cy="240" r="1.6" fill="#E7E2DA" opacity="0.6"/>
+  <circle cx="262" cy="252" r="1.6" fill="#E7E2DA" opacity="0.6"/>
+</svg>
