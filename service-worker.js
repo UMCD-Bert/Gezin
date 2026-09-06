@@ -1,7 +1,7 @@
 // Simpele, read-only offline-fallback voor de app-shell (HTML/manifest/icons/
 // supabase-js library). Live data (Supabase-aanroepen) lopen hier NIET doorheen —
 // die worden al apart offline-vriendelijk afgehandeld in index.html.
-const CACHE_VERSION = 'gezin-shell-v1';
+const CACHE_VERSION = 'gezin-shell-v2';
 
 const APP_SHELL = [
   './',
@@ -40,7 +40,12 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET' || !isAppShellRequest(request)) return;
 
   event.respondWith(
-    fetch(request)
+    // cache: 'no-store' dwingt een écht netwerkverzoek af — zonder deze optie
+    // kan de browser's eigen HTTP-cache (GitHub Pages stuurt Cache-Control:
+    // max-age=600 mee) deze fetch tot 10 minuten lang beantwoorden zonder de
+    // server te raken, waardoor updates niet doorkomen ondanks "netwerk
+    // eerst"-logica hieronder.
+    fetch(request, { cache: 'no-store' })
       .then((response) => {
         const copy = response.clone();
         caches.open(CACHE_VERSION).then((cache) => cache.put(request, copy));
