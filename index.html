@@ -729,7 +729,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.24';
+const APP_VERSIE = 'v0.25';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -1427,20 +1427,21 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       return pendingToggleQueue.some(q => String(q.itemId) === String(itemId));
     }
 
-    // Een mislukte fetch (geen bereik) geeft bij supabase-js GEEN gegooide
-    // exception, maar komt terug als { error, status: 0 } — dus puur op
-    // "is er een error" filteren zou een netwerkstoring ten onrechte als
-    // permanente serverfout behandelen (vinkje weer terugzetten + alert,
-    // terwijl er straks weer bereik is). status 0/ontbrekend wijst op geen
-    // bereik. Daarnaast blijkt op iOS/Safari het error-object bij een
-    // netwerkstoring GEEN echte TypeError-instantie te zijn (het is een
-    // platte error met als message letterlijk de tekst "TypeError: Load
-    // failed"), dus "instanceof TypeError" mist die situatie — vandaar ook
-    // een tekst-check op de bekende fetch-foutmeldingen.
-    function isNetwerkFout(error, status) {
-      if (!status) return true;
-      const tekst = String((error && error.message) || error || '').toLowerCase();
-      return /load failed|failed to fetch|network|internet connection|timed out|timeout/.test(tekst);
+    // Pogingen om een netwerkstoring te HERKENNEN (op status/fouttekst) bleken
+    // op het echte toestel van de gebruiker telkens niet te kloppen met de
+    // werkelijke vorm van het foutobject — met als gevolg dat een gewone
+    // offline-situatie toch als "definitief geweigerd" werd behandeld en de
+    // afvink-actie meteen werd opgegeven (vinkje sprong terug).
+    // Daarom nu omgekeerd geredeneerd: alleen stoppen met proberen als
+    // ZEKER is dat de sérver het verzoek heeft afgewezen — d.w.z. een echte
+    // ontvangen HTTP-foutstatus (400-599) MET een Postgrest-foutcode erbij.
+    // Bij twijfel (elke andere foutvorm, ongeacht status/message) blijft de
+    // actie gewoon in de wachtrij staan; dat kost hooguit een badge die wat
+    // langer blijft staan, in plaats van een stilletjes verloren afvinkactie.
+    function isEchteServerAfwijzing(error, status) {
+      const heeftHttpFoutstatus = typeof status === 'number' && status >= 400 && status < 600;
+      const heeftPostgrestFoutcode = !!(error && typeof error === 'object' && error.code);
+      return heeftHttpFoutstatus && heeftPostgrestFoutcode;
     }
 
     async function verwerkPendingQueue() {
@@ -1455,8 +1456,11 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
             ({ error, status } = await supabase.from('boodschappen_items').update(entry.action.changes).eq('id', entry.action.id));
           }
           if (error) {
-            if (isNetwerkFout(error, status)) {
-              // Waarschijnlijk geen bereik — laten staan, later opnieuw proberen.
+            if (!isEchteServerAfwijzing(error, status)) {
+              // Geen zekerheid dat de server dit definitief geweigerd heeft —
+              // laten staan, later opnieuw proberen. Wel loggen voor het geval
+              // iemand ooit met Safari Web Inspector meekijkt.
+              console.error('Afvink-actie (nog) niet gelukt, blijft in wachtrij:', error, 'status:', status);
               continue;
             }
             // Verzoek is wél bij de server aangekomen, maar geweigerd — dit is
