@@ -212,6 +212,10 @@
     display: block; text-align: center; font-size: 13px; color: var(--accent);
     padding: 14px; cursor: pointer;
   }
+  .verwijder-afgevinkte-link {
+    display: block; text-align: center; font-size: 13px; color: var(--danger);
+    padding: 0 14px 14px; cursor: pointer;
+  }
 
   .fab-add-btn {
     position: fixed; bottom: 24px; right: 20px; z-index: 15;
@@ -394,6 +398,7 @@
     <div id="lijst"></div>
 
     <div class="vaste-artikelen-link" id="open-vaste-artikelen">⚙️ Vaste artikelen beheren</div>
+    <div class="verwijder-afgevinkte-link" id="verwijder-afgevinkte-link" style="display:none;">🗑 Verwijder afgevinkte</div>
 
     <button class="fab-add-btn" id="open-boodschap-add-modal" title="Item toevoegen">+</button>
   </section>
@@ -724,7 +729,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.22';
+const APP_VERSIE = 'v0.23';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -1641,6 +1646,8 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 
     function render() {
       const groups = GezinBoodschappen.sortItems(items);
+      const verwijderAfgevinkteLink = document.getElementById('verwijder-afgevinkte-link');
+      if (verwijderAfgevinkteLink) verwijderAfgevinkteLink.style.display = items.some(i => i.afgevinkt) ? '' : 'none';
       if (groups.length === 0) {
         lijstEl.innerHTML = '<div class="empty-state">Boodschappenlijst is leeg 🎉</div>';
         return;
@@ -1728,6 +1735,19 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         console.error(fout);
       }
     }
+
+    // --- Afgevinkte items in één keer verwijderen (i.p.v. wachten op de
+    // automatische opruiming na ~1 dag) ---
+    document.getElementById('verwijder-afgevinkte-link').addEventListener('click', async () => {
+      const afgevinkteItems = items.filter(i => i.afgevinkt);
+      if (afgevinkteItems.length === 0) return;
+      const doorgaan = confirm(`${afgevinkteItems.length} afgevinkte item(s) verwijderen?`);
+      if (!doorgaan) return;
+      const { error } = await supabase.from('boodschappen_items').delete().eq('afgevinkt', true);
+      if (error) { alert('Kon afgevinkte items niet verwijderen: ' + error.message); return; }
+      items = items.filter(i => !i.afgevinkt);
+      render();
+    });
 
     // --- Vaste artikelen modal ---
     const vastModalOverlay = document.getElementById('vaste-modal-overlay');
