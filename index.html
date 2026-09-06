@@ -325,11 +325,39 @@
 
   .recept-fotos-grid { display: flex; gap: 8px; flex-wrap: wrap; }
   .recept-foto-thumb { position: relative; width: 72px; height: 72px; }
-  .recept-foto-thumb img { width: 100%; height: 100%; border-radius: 8px; object-fit: cover; }
+  .recept-foto-thumb img { width: 100%; height: 100%; border-radius: 8px; object-fit: cover; cursor: pointer; }
+  .recept-foto-thumb.is-primair img { outline: 2px solid #f5a623; outline-offset: 1px; }
   .recept-foto-thumb button {
     position: absolute; top: -6px; right: -6px; background: var(--danger); color: #fff;
     border: 2px solid #fff; border-radius: 50%; width: 20px; height: 20px; font-size: 11px;
     line-height: 1; cursor: pointer;
+  }
+  .recept-foto-thumb .foto-primair-btn {
+    position: absolute; top: -6px; left: -6px; background: #fff; color: #f5a623;
+    border: 2px solid #fff; border-radius: 50%; width: 20px; height: 20px; font-size: 12px;
+    line-height: 1; cursor: pointer; box-shadow: 0 0 0 1px var(--border);
+  }
+
+  .foto-lightbox-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 60;
+    align-items: center; justify-content: center;
+  }
+  .foto-lightbox-overlay.open { display: flex; }
+  .foto-lightbox-overlay img { max-width: 92vw; max-height: 85vh; object-fit: contain; border-radius: 4px; }
+  .lightbox-close {
+    position: absolute; top: 16px; right: 16px; background: none; border: none;
+    color: #fff; font-size: 26px; cursor: pointer; line-height: 1; padding: 4px;
+  }
+  .lightbox-nav {
+    position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.15);
+    border: none; color: #fff; font-size: 32px; width: 48px; height: 48px; border-radius: 50%;
+    cursor: pointer; line-height: 1;
+  }
+  .lightbox-prev { left: 12px; }
+  .lightbox-next { right: 12px; }
+  .lightbox-teller {
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    color: #fff; font-size: 13px; opacity: 0.8;
   }
 
   .recept-boodschap-optie { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
@@ -494,6 +522,14 @@
       <input id="recept-foto-input" type="file" accept="image/*" multiple style="margin-top:8px; font-size:13px;">
     </div>
   </div>
+</div>
+
+<div class="foto-lightbox-overlay" id="foto-lightbox-overlay">
+  <button class="lightbox-close" id="lightbox-close">✕</button>
+  <button class="lightbox-nav lightbox-prev" id="lightbox-prev">‹</button>
+  <img id="lightbox-img" src="" alt="">
+  <button class="lightbox-nav lightbox-next" id="lightbox-next">›</button>
+  <div class="lightbox-teller" id="lightbox-teller"></div>
 </div>
 
 <div class="modal-overlay" id="recept-boodschappen-modal-overlay">
@@ -679,7 +715,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.19';
+const APP_VERSIE = 'v0.20';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -1314,8 +1350,16 @@ const GezinRecepten = (function () {
     return ingredienten.filter(i => geselecteerdeIds.includes(i.id));
   }
 
+  // Kiest de omslagfoto voor het receptenoverzicht: de expliciet aangewezen
+  // primaire foto, anders de eerst toegevoegde (bestaand gedrag als fallback).
+  function kiesOmslagfoto(fotosVanRecept) {
+    if (!fotosVanRecept || fotosVanRecept.length === 0) return null;
+    return fotosVanRecept.find(f => f.is_primair) || fotosVanRecept[0];
+  }
+
   return {
     buildReceptInsertPayload, buildReceptUpdatePayload, buildIngredientInsertPayload, filterGeselecteerdeIngredienten,
+    kiesOmslagfoto,
   };
 })();
 
@@ -2553,7 +2597,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       if (recepten.length === 0) { el.innerHTML = '<div class="empty-state">Nog geen recepten 📖</div>'; return; }
       const sorted = [...recepten].sort((a, b) => a.titel.localeCompare(b.titel, 'nl'));
       el.innerHTML = sorted.map(r => {
-        const eersteFoto = fotos.find(f => f.recept_id === r.id);
+        const eersteFoto = GezinRecepten.kiesOmslagfoto(fotos.filter(f => f.recept_id === r.id));
         const subInfoDelen = [];
         if (r.kookboek_titel) subInfoDelen.push(`${escapeHtml(r.kookboek_titel)}${r.kookboek_pagina ? ` p.${escapeHtml(r.kookboek_pagina)}` : ''}`);
         if (r.bron_url) subInfoDelen.push('🔗 link');
@@ -2700,9 +2744,10 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       if (editingReceptId == null) { el.innerHTML = ''; return; }
       const lijst = fotos.filter(f => f.recept_id === editingReceptId);
       el.innerHTML = lijst.map(f => `
-        <div class="recept-foto-thumb" data-id="${f.id}">
-          <img src="${f.url}" alt="">
-          <button data-role="delete-foto">✕</button>
+        <div class="recept-foto-thumb ${f.is_primair ? 'is-primair' : ''}" data-id="${f.id}">
+          <img src="${f.url}" alt="" data-role="open-lightbox">
+          <button class="foto-primair-btn" data-role="maak-primair" title="${f.is_primair ? 'Primaire foto' : 'Maak primaire foto'}">${f.is_primair ? '⭐' : '☆'}</button>
+          <button data-role="delete-foto" title="Verwijderen">✕</button>
         </div>
       `).join('');
       el.querySelectorAll('[data-role="delete-foto"]').forEach(btn => {
@@ -2711,7 +2756,64 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           await supabase.from('recepten_fotos').delete().eq('id', id);
         });
       });
+      el.querySelectorAll('[data-role="maak-primair"]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.closest('.recept-foto-thumb').getAttribute('data-id');
+          await supabase.from('recepten_fotos').update({ is_primair: false }).eq('recept_id', editingReceptId).neq('id', id);
+          await supabase.from('recepten_fotos').update({ is_primair: true }).eq('id', id);
+        });
+      });
+      el.querySelectorAll('[data-role="open-lightbox"]').forEach(img => {
+        img.addEventListener('click', () => {
+          const id = img.closest('.recept-foto-thumb').getAttribute('data-id');
+          openLightbox(editingReceptId, id);
+        });
+      });
     }
+
+    // --- Foto-lightbox: fullscreen weergave met heen-en-terug bladeren ---
+    const lightboxOverlay = document.getElementById('foto-lightbox-overlay');
+    const lightboxImg = document.getElementById('lightbox-img');
+    const lightboxTeller = document.getElementById('lightbox-teller');
+    let lightboxFotos = [];
+    let lightboxIndex = 0;
+
+    function renderLightbox() {
+      if (lightboxFotos.length === 0) { closeLightbox(); return; }
+      lightboxImg.src = lightboxFotos[lightboxIndex].url;
+      lightboxTeller.textContent = lightboxFotos.length > 1 ? `${lightboxIndex + 1} / ${lightboxFotos.length}` : '';
+      const meerdereFotos = lightboxFotos.length > 1;
+      document.getElementById('lightbox-prev').style.display = meerdereFotos ? '' : 'none';
+      document.getElementById('lightbox-next').style.display = meerdereFotos ? '' : 'none';
+    }
+    function openLightbox(receptId, startId) {
+      lightboxFotos = fotos.filter(f => f.recept_id === receptId);
+      const idx = lightboxFotos.findIndex(f => String(f.id) === String(startId));
+      lightboxIndex = idx === -1 ? 0 : idx;
+      renderLightbox();
+      lightboxOverlay.classList.add('open');
+    }
+    function closeLightbox() {
+      lightboxOverlay.classList.remove('open');
+    }
+    document.getElementById('lightbox-close').addEventListener('click', closeLightbox);
+    document.getElementById('lightbox-prev').addEventListener('click', () => {
+      lightboxIndex = (lightboxIndex - 1 + lightboxFotos.length) % lightboxFotos.length;
+      renderLightbox();
+    });
+    document.getElementById('lightbox-next').addEventListener('click', () => {
+      lightboxIndex = (lightboxIndex + 1) % lightboxFotos.length;
+      renderLightbox();
+    });
+    lightboxOverlay.addEventListener('click', (e) => {
+      if (e.target === lightboxOverlay) closeLightbox();
+    });
+    window.addEventListener('keydown', (e) => {
+      if (!lightboxOverlay.classList.contains('open')) return;
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') document.getElementById('lightbox-prev').click();
+      if (e.key === 'ArrowRight') document.getElementById('lightbox-next').click();
+    });
 
     document.getElementById('recept-foto-input').addEventListener('change', async (e) => {
       if (editingReceptId == null) return;
