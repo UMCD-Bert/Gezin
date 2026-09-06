@@ -729,7 +729,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.23';
+const APP_VERSIE = 'v0.24';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -1431,12 +1431,16 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     // exception, maar komt terug als { error, status: 0 } — dus puur op
     // "is er een error" filteren zou een netwerkstoring ten onrechte als
     // permanente serverfout behandelen (vinkje weer terugzetten + alert,
-    // terwijl er straks weer bereik is). status 0/ontbrekend of een
-    // TypeError (fetch-foutmelding, "Load failed"/"Failed to fetch") wijst op
-    // geen bereik; alleen een écht ontvangen HTTP-statuscode is een
-    // serverbeslissing waar herhalen niets aan verandert.
+    // terwijl er straks weer bereik is). status 0/ontbrekend wijst op geen
+    // bereik. Daarnaast blijkt op iOS/Safari het error-object bij een
+    // netwerkstoring GEEN echte TypeError-instantie te zijn (het is een
+    // platte error met als message letterlijk de tekst "TypeError: Load
+    // failed"), dus "instanceof TypeError" mist die situatie — vandaar ook
+    // een tekst-check op de bekende fetch-foutmeldingen.
     function isNetwerkFout(error, status) {
-      return !status || error instanceof TypeError;
+      if (!status) return true;
+      const tekst = String((error && error.message) || error || '').toLowerCase();
+      return /load failed|failed to fetch|network|internet connection|timed out|timeout/.test(tekst);
     }
 
     async function verwerkPendingQueue() {
