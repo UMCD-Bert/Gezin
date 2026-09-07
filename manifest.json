@@ -1,6 +1,6 @@
 {
-  "name": "Gezin",
-  "short_name": "Gezin",
+  "name": "Oranjetipje",
+  "short_name": "Oranjetipje",
   "description": "Gedeelde gezinsapp: boodschappen, kalender, taken en recepten",
   "start_url": "./index.html",
   "scope": "./",
