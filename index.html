@@ -798,7 +798,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.29';
+const APP_VERSIE = 'v0.30';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -3441,8 +3441,17 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         alert(err.message);
         return;
       }
-      const { error } = await supabase.from('maaltijden_planning').upsert(payload, { onConflict: 'datum' });
+      // .select() erbij zodat de opgeslagen rij teruggegeven wordt — de
+      // weekkaart moet meteen bijwerken en niet enkel op realtime leunen
+      // (bleek in de praktijk niet snel/betrouwbaar genoeg, zag eruit als
+      // "wordt niet opgeslagen" terwijl de rij er in werkelijkheid wel stond).
+      const { data, error } = await supabase.from('maaltijden_planning').upsert(payload, { onConflict: 'datum' }).select();
       if (error) { alert('Kon maaltijd niet opslaan: ' + error.message); return; }
+      if (data && data[0]) {
+        maaltijden = maaltijden.filter(m => m.datum !== data[0].datum);
+        maaltijden.push(data[0]);
+        renderPlanner();
+      }
       maaltijdModalOverlay.classList.remove('open');
     });
     document.getElementById('maaltijd-verwijder-btn').addEventListener('click', async () => {
@@ -3452,6 +3461,8 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       if (!confirm('Deze geplande maaltijd verwijderen?')) return;
       const { error } = await supabase.from('maaltijden_planning').delete().eq('id', bestaande.id);
       if (error) { alert('Kon niet verwijderen: ' + error.message); return; }
+      maaltijden = maaltijden.filter(m => m.id !== bestaande.id);
+      renderPlanner();
       maaltijdModalOverlay.classList.remove('open');
     });
     maaltijdBoodschappenBtn.addEventListener('click', () => {
