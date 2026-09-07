@@ -331,6 +331,25 @@
   .recept-kaart .sub-info { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .recept-kaart .delete-btn { background: none; border: none; color: var(--danger); font-size: 18px; cursor: pointer; flex-shrink: 0; }
 
+  .dag-kaart {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px; margin-bottom: 10px; cursor: pointer; display: flex; gap: 10px; align-items: center;
+  }
+  .dag-kaart.vandaag { border-color: var(--accent); }
+  .dag-kaart img.thumb { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: var(--bg); }
+  .dag-kaart .thumb-placeholder {
+    width: 48px; height: 48px; border-radius: 8px; background: var(--bg); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 20px;
+  }
+  .dag-kaart .info { flex: 1; min-width: 0; }
+  .dag-kaart .dag-naam { font-size: 12px; color: var(--muted); text-transform: capitalize; }
+  .dag-kaart .titel { font-size: 15px; font-weight: 600; }
+  .dag-kaart .titel.leeg { font-weight: 400; color: var(--muted); }
+  .dag-kaart .kok-badge { margin-top: 2px; }
+  .dag-kaart .edit-btn { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 4px; flex-shrink: 0; }
+
+  .kok-kies-rij { display: flex; gap: 8px; margin: 6px 0 4px; }
+
   .ingredient-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
   .ingredient-row .naam { flex: 1; font-size: 14px; }
   .ingredient-row .hoeveelheid { font-size: 13px; color: var(--muted); }
@@ -389,6 +408,7 @@
 <nav>
   <button class="tab-btn active" data-tab="boodschappen">🛒 Boodschappen</button>
   <button class="tab-btn" data-tab="kalender">📅 Kalender</button>
+  <button class="tab-btn" data-tab="planner">🍽️ Planner</button>
   <button class="tab-btn" data-tab="taken">✅ Taken</button>
   <button class="tab-btn" data-tab="recepten">📖 Recepten</button>
 </nav>
@@ -442,6 +462,36 @@
 
     <button class="fab-add-btn" id="open-afspraak-add-modal" title="Nieuwe afspraak">+</button>
   </section>
+
+  <section id="tab-content-planner" class="tab-content" style="display:none;">
+    <div class="maand-strip">
+      <button id="week-vorige" class="maand-nav-btn">‹</button>
+      <span id="week-label" class="maand-label"></span>
+      <button id="week-volgende" class="maand-nav-btn">›</button>
+      <button id="week-vandaag" class="maand-vandaag-btn">Deze week</button>
+    </div>
+    <div id="planner-lijst"></div>
+  </section>
+
+  <div class="modal-overlay" id="maaltijd-modal-overlay">
+    <div class="modal">
+      <button class="modal-close" id="close-maaltijd-modal">✕</button>
+      <h2 id="maaltijd-modal-titel">Maaltijd</h2>
+      <div class="add-row combo-wrap">
+        <input id="maaltijd-recept-input" type="text" placeholder="Kies een recept of typ een naam...">
+        <div id="maaltijd-recept-suggesties" class="suggestions" style="display:none;"></div>
+      </div>
+      <div class="betrokkenen-form-titel">Wie kookt?</div>
+      <div id="maaltijd-kok-kies" class="kok-kies-rij"></div>
+      <button class="btn-add" id="maaltijd-opslaan-btn" style="margin-top:14px; width:100%;">Opslaan</button>
+      <button id="maaltijd-boodschappen-btn" style="display:none; margin-top:10px; width:100%; background:none; border:1.5px solid var(--accent); color:var(--accent); border-radius:8px; padding:8px 12px; cursor:pointer;">
+        🛒 Zet ingrediënten op de boodschappenlijst
+      </button>
+      <button id="maaltijd-verwijder-btn" style="display:none; margin-top:10px; width:100%; background:none; border:1.5px solid var(--danger); color:var(--danger); border-radius:8px; padding:8px 12px; cursor:pointer;">
+        Maaltijd verwijderen
+      </button>
+    </div>
+  </div>
 
   <section id="tab-content-taken" class="tab-content" style="display:none; position:relative;">
     <div id="taken-lijst"></div>
@@ -729,7 +779,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.26';
+const APP_VERSIE = 'v0.27';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -1377,9 +1427,79 @@ const GezinRecepten = (function () {
   };
 })();
 
+// ---------------------------------------------------------------
+// GezinMaaltijden — pure logica voor de Planner-tab: een weekweergave met
+// per dag hooguit één geplande maaltijd, optioneel gekoppeld aan een recept
+// (anders vrije tekst), en optioneel wie kookt (dezelfde twee personen als
+// de actiehouders bij Taken — koks zijn geen auto's).
+// ---------------------------------------------------------------
+const GezinMaaltijden = (function () {
+
+  const DAG_NAMEN = ['maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag', 'zondag'];
+
+  function toIsoDate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  // Maandag van de week die `referentieDatum` bevat (ma=start, zo=einde).
+  function startVanWeek(referentieDatum) {
+    const d = new Date(referentieDatum);
+    d.setHours(0, 0, 0, 0);
+    const dagNr = d.getDay(); // 0=zondag..6=zaterdag
+    const offsetNaarMaandag = dagNr === 0 ? -6 : 1 - dagNr;
+    d.setDate(d.getDate() + offsetNaarMaandag);
+    return d;
+  }
+
+  function bouwWeekDagen(weekStart) {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      return { datum: toIsoDate(d), dagNaam: DAG_NAMEN[i], dag: d.getDate(), maand: d.getMonth() };
+    });
+  }
+
+  function weekLabel(weekStart, maandNamen) {
+    const eind = new Date(weekStart);
+    eind.setDate(weekStart.getDate() + 6);
+    const zelfdeMaand = weekStart.getMonth() === eind.getMonth();
+    if (zelfdeMaand) {
+      return `${weekStart.getDate()} - ${eind.getDate()} ${maandNamen[weekStart.getMonth()]} ${eind.getFullYear()}`;
+    }
+    return `${weekStart.getDate()} ${maandNamen[weekStart.getMonth()]} - ${eind.getDate()} ${maandNamen[eind.getMonth()]} ${eind.getFullYear()}`;
+  }
+
+  function vindMaaltijdVoorDatum(maaltijden, isoDatum) {
+    return maaltijden.find(m => m.datum === isoDatum) || null;
+  }
+
+  const KOKS = ['bert', 'ellen'];
+
+  function buildMaaltijdPayload({ datum, receptId, titel, kok }) {
+    if (!datum) throw new Error('Datum is verplicht');
+    const heeftRecept = receptId !== null && receptId !== undefined && receptId !== '';
+    const titelTrimmed = titel && titel.trim() ? titel.trim() : '';
+    if (!heeftRecept && !titelTrimmed) throw new Error('Kies een recept of vul een naam in');
+    if (kok && !KOKS.includes(kok)) throw new Error('Ongeldige kok');
+    return {
+      datum,
+      recept_id: heeftRecept ? receptId : null,
+      titel: heeftRecept ? null : titelTrimmed,
+      kok: kok || null,
+    };
+  }
+
+  return {
+    DAG_NAMEN, KOKS, toIsoDate, startVanWeek, bouwWeekDagen, weekLabel, vindMaaltijdVoorDatum, buildMaaltijdPayload,
+  };
+})();
+
 // Maak beschikbaar voor de jsdom-testrunner (Node) én de browser.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { GezinBoodschappen, GezinKalender, GezinTaken, GezinRecepten };
+  module.exports = { GezinBoodschappen, GezinKalender, GezinTaken, GezinRecepten, GezinMaaltijden };
 }
 
 // ---------------------------------------------------------------
@@ -2882,10 +3002,14 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     });
 
     // --- "Zet op boodschappenlijst" ---
+    // Los van `editingReceptId` (dat hoort bij het open recept-detailmodal) —
+    // dit modal moet ook vanuit de Planner-tab te openen zijn voor een recept
+    // dat daar gekoppeld is, zonder het recept-detailmodal te hoeven openen.
     const receptBoodschappenModalOverlay = document.getElementById('recept-boodschappen-modal-overlay');
-    document.getElementById('open-recept-boodschappen-btn').addEventListener('click', () => {
-      if (editingReceptId == null) return;
-      const lijst = ingredienten.filter(i => i.recept_id === editingReceptId);
+    let boodschappenModalReceptId = null;
+    function openReceptBoodschappenModal(receptId) {
+      boodschappenModalReceptId = receptId;
+      const lijst = ingredienten.filter(i => i.recept_id === receptId);
       const el = document.getElementById('recept-boodschappen-kies');
       if (lijst.length === 0) {
         el.innerHTML = '<div style="color:var(--muted); font-size:14px;">Dit recept heeft nog geen ingrediënten.</div>';
@@ -2900,14 +3024,18 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         `).join('');
       }
       receptBoodschappenModalOverlay.classList.add('open');
+    }
+    document.getElementById('open-recept-boodschappen-btn').addEventListener('click', () => {
+      if (editingReceptId == null) return;
+      openReceptBoodschappenModal(editingReceptId);
     });
     document.getElementById('close-recept-boodschappen-modal').addEventListener('click', () => {
       receptBoodschappenModalOverlay.classList.remove('open');
     });
     document.getElementById('recept-boodschappen-toevoegen-btn').addEventListener('click', async () => {
-      if (editingReceptId == null) return;
+      if (boodschappenModalReceptId == null) return;
       const geselecteerdeIds = [...document.querySelectorAll('#recept-boodschappen-kies input:checked')].map(el => el.value);
-      const lijst = ingredienten.filter(i => i.recept_id === editingReceptId);
+      const lijst = ingredienten.filter(i => i.recept_id === boodschappenModalReceptId);
       // Checkbox-waardes zijn altijd strings (HTML), terwijl i.id een getal kan
       // zijn (Supabase bigint) — hier expliciet coerced vergelijken.
       const geselecteerd = lijst.filter(i => geselecteerdeIds.includes(String(i.id)));
@@ -2929,6 +3057,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         if (error) throw error;
         recepten = data || [];
         renderReceptenLijst();
+        renderPlanner();
       } catch (fout) {
         console.error(fout);
       }
@@ -2950,6 +3079,178 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         fotos = data || [];
         renderReceptenLijst();
         if (editingReceptId != null) renderReceptFotosGrid();
+        renderPlanner();
+      } catch (fout) {
+        console.error(fout);
+      }
+    }
+
+    // --- Planner (maaltijden-weekplanning) ---
+    let maaltijden = [];
+    let bekekenWeekStart = GezinMaaltijden.startVanWeek(vandaag);
+    let editingMaaltijdDatum = null;
+    let maaltijdGekozenReceptId = null;
+    let maaltijdGekozenKok = null;
+
+    const maaltijdModalOverlay = document.getElementById('maaltijd-modal-overlay');
+    const maaltijdReceptInput = document.getElementById('maaltijd-recept-input');
+    const maaltijdReceptSuggesties = document.getElementById('maaltijd-recept-suggesties');
+    const maaltijdBoodschappenBtn = document.getElementById('maaltijd-boodschappen-btn');
+
+    function renderWeekLabel() {
+      document.getElementById('week-label').textContent = GezinMaaltijden.weekLabel(bekekenWeekStart, GezinKalender.MAAND_NAMEN);
+    }
+
+    function renderPlanner() {
+      renderWeekLabel();
+      const dagen = GezinMaaltijden.bouwWeekDagen(bekekenWeekStart);
+      const vandaagIso = GezinKalender.toIsoDate(vandaag);
+      const el = document.getElementById('planner-lijst');
+      if (!el) return;
+      el.innerHTML = dagen.map(dag => {
+        const maaltijd = GezinMaaltijden.vindMaaltijdVoorDatum(maaltijden, dag.datum);
+        const recept = maaltijd && maaltijd.recept_id != null ? recepten.find(r => r.id === maaltijd.recept_id) : null;
+        const titelTekst = recept ? recept.titel : (maaltijd ? maaltijd.titel : null);
+        const omslagfoto = recept ? GezinRecepten.kiesOmslagfoto(fotos.filter(f => f.recept_id === recept.id)) : null;
+        const kok = maaltijd && maaltijd.kok ? GezinTaken.ACTIEHOUDERS.find(a => a.key === maaltijd.kok) : null;
+        return `
+          <div class="dag-kaart ${dag.datum === vandaagIso ? 'vandaag' : ''}" data-datum="${dag.datum}">
+            ${omslagfoto ? `<img class="thumb" src="${omslagfoto.url}" alt="">` : '<div class="thumb-placeholder">🍽️</div>'}
+            <div class="info">
+              <div class="dag-naam">${dag.dagNaam} ${dag.dag} ${GezinKalender.MAAND_NAMEN[dag.maand]}</div>
+              <div class="titel ${titelTekst ? '' : 'leeg'}">${titelTekst ? escapeHtml(titelTekst) : 'Nog niets gepland'}</div>
+              ${kok ? `<div class="kok-badge betrokkenen-rij"><span class="betrokkene-avatar" title="${escapeHtml(kok.naam)}">${BETROKKENE_ICONEN[kok.icoon]}</span></div>` : ''}
+            </div>
+            <button class="edit-btn" data-role="edit-maaltijd">✏️</button>
+          </div>
+        `;
+      }).join('');
+      el.querySelectorAll('.dag-kaart').forEach(kaart => {
+        kaart.addEventListener('click', () => openMaaltijdModal(kaart.getAttribute('data-datum')));
+      });
+    }
+
+    document.getElementById('week-vorige').addEventListener('click', () => {
+      const d = new Date(bekekenWeekStart);
+      d.setDate(d.getDate() - 7);
+      bekekenWeekStart = d;
+      renderPlanner();
+    });
+    document.getElementById('week-volgende').addEventListener('click', () => {
+      const d = new Date(bekekenWeekStart);
+      d.setDate(d.getDate() + 7);
+      bekekenWeekStart = d;
+      renderPlanner();
+    });
+    document.getElementById('week-vandaag').addEventListener('click', () => {
+      bekekenWeekStart = GezinMaaltijden.startVanWeek(vandaag);
+      renderPlanner();
+    });
+
+    function renderMaaltijdKokKies() {
+      const el = document.getElementById('maaltijd-kok-kies');
+      el.innerHTML = GezinTaken.ACTIEHOUDERS.map(a => `
+        <div class="betrokkene-optie ${maaltijdGekozenKok === a.key ? 'gekozen' : ''}" data-key="${a.key}">
+          <span class="betrokkene-avatar">${BETROKKENE_ICONEN[a.icoon]}</span>${escapeHtml(a.naam)}
+        </div>
+      `).join('');
+      el.querySelectorAll('.betrokkene-optie').forEach(chip => {
+        chip.addEventListener('click', () => {
+          const key = chip.getAttribute('data-key');
+          maaltijdGekozenKok = maaltijdGekozenKok === key ? null : key;
+          renderMaaltijdKokKies();
+        });
+      });
+    }
+
+    function bijwerkenMaaltijdBoodschappenKnop() {
+      maaltijdBoodschappenBtn.style.display = maaltijdGekozenReceptId != null ? '' : 'none';
+    }
+
+    function openMaaltijdModal(datum) {
+      editingMaaltijdDatum = datum;
+      const bestaande = GezinMaaltijden.vindMaaltijdVoorDatum(maaltijden, datum);
+      maaltijdGekozenReceptId = bestaande ? bestaande.recept_id : null;
+      maaltijdGekozenKok = bestaande ? bestaande.kok : null;
+      document.getElementById('maaltijd-modal-titel').textContent = 'Maaltijd — ' + formatDagTitel(datum);
+      if (bestaande && bestaande.recept_id != null) {
+        const recept = recepten.find(r => r.id === bestaande.recept_id);
+        maaltijdReceptInput.value = recept ? recept.titel : '';
+      } else {
+        maaltijdReceptInput.value = bestaande ? (bestaande.titel || '') : '';
+      }
+      maaltijdReceptSuggesties.style.display = 'none';
+      renderMaaltijdKokKies();
+      bijwerkenMaaltijdBoodschappenKnop();
+      document.getElementById('maaltijd-verwijder-btn').style.display = bestaande ? '' : 'none';
+      maaltijdModalOverlay.classList.add('open');
+    }
+    document.getElementById('close-maaltijd-modal').addEventListener('click', () => {
+      maaltijdModalOverlay.classList.remove('open');
+    });
+
+    maaltijdReceptInput.addEventListener('input', () => {
+      // Getypt na een eerdere keuze = geen recept meer gekoppeld, tot opnieuw gekozen.
+      maaltijdGekozenReceptId = null;
+      bijwerkenMaaltijdBoodschappenKnop();
+      const zoekterm = maaltijdReceptInput.value.trim().toLowerCase();
+      if (!zoekterm) { maaltijdReceptSuggesties.style.display = 'none'; return; }
+      const matches = recepten.filter(r => r.titel.toLowerCase().includes(zoekterm)).slice(0, 8);
+      if (matches.length === 0) { maaltijdReceptSuggesties.style.display = 'none'; return; }
+      maaltijdReceptSuggesties.innerHTML = matches.map(r => `<div data-id="${r.id}">${escapeHtml(r.titel)}</div>`).join('');
+      maaltijdReceptSuggesties.style.display = 'block';
+    });
+    maaltijdReceptSuggesties.addEventListener('click', (e) => {
+      const id = e.target.getAttribute('data-id');
+      if (!id) return;
+      const recept = recepten.find(r => String(r.id) === id);
+      if (!recept) return;
+      maaltijdGekozenReceptId = recept.id;
+      maaltijdReceptInput.value = recept.titel;
+      maaltijdReceptSuggesties.style.display = 'none';
+      bijwerkenMaaltijdBoodschappenKnop();
+    });
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#maaltijd-modal-overlay .combo-wrap')) maaltijdReceptSuggesties.style.display = 'none';
+    });
+
+    document.getElementById('maaltijd-opslaan-btn').addEventListener('click', async () => {
+      let payload;
+      try {
+        payload = GezinMaaltijden.buildMaaltijdPayload({
+          datum: editingMaaltijdDatum,
+          receptId: maaltijdGekozenReceptId,
+          titel: maaltijdReceptInput.value,
+          kok: maaltijdGekozenKok,
+        });
+      } catch (err) {
+        alert(err.message);
+        return;
+      }
+      const { error } = await supabase.from('maaltijden_planning').upsert(payload, { onConflict: 'datum' });
+      if (error) { alert('Kon maaltijd niet opslaan: ' + error.message); return; }
+      maaltijdModalOverlay.classList.remove('open');
+    });
+    document.getElementById('maaltijd-verwijder-btn').addEventListener('click', async () => {
+      if (!editingMaaltijdDatum) return;
+      const bestaande = GezinMaaltijden.vindMaaltijdVoorDatum(maaltijden, editingMaaltijdDatum);
+      if (!bestaande) { maaltijdModalOverlay.classList.remove('open'); return; }
+      if (!confirm('Deze geplande maaltijd verwijderen?')) return;
+      const { error } = await supabase.from('maaltijden_planning').delete().eq('id', bestaande.id);
+      if (error) { alert('Kon niet verwijderen: ' + error.message); return; }
+      maaltijdModalOverlay.classList.remove('open');
+    });
+    maaltijdBoodschappenBtn.addEventListener('click', () => {
+      if (maaltijdGekozenReceptId == null) return;
+      openReceptBoodschappenModal(maaltijdGekozenReceptId);
+    });
+
+    async function loadMaaltijden() {
+      try {
+        const { data, error } = await supabase.from('maaltijden_planning').select('*');
+        if (error) throw error;
+        maaltijden = data || [];
+        renderPlanner();
       } catch (fout) {
         console.error(fout);
       }
@@ -3000,6 +3301,11 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       supabase.channel('recepten_fotos_changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'recepten_fotos' }, () => {
           loadFotos();
+        })
+        .subscribe();
+      supabase.channel('maaltijden_planning_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'maaltijden_planning' }, () => {
+          loadMaaltijden();
         })
         .subscribe();
     }
@@ -3053,6 +3359,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       await loadRecepten();
       await loadIngredienten();
       await loadFotos();
+      await loadMaaltijden();
       subscribeRealtime();
     })();
 
