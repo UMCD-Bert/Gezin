@@ -14,6 +14,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/ical.js@1.5.0/build/ical.min.js"></script>
 <style>
   :root {
     --bg: #f4f5f7;
@@ -179,6 +180,8 @@
   .agenda-item .tijd { font-size: 13px; color: var(--muted); min-width: 42px; }
   .agenda-item .titel { flex: 1; font-size: 15px; }
   .agenda-item.verjaardag { background: #fff7e6; }
+  .agenda-item.extern { opacity: 0.85; }
+  .agenda-item.extern .titel { color: var(--muted); }
   .agenda-item .edit-btn { flex-shrink: 0; }
   .wie-badge {
     font-size: 11px; border-radius: 100px; padding: 2px 8px; white-space: nowrap; color: #fff;
@@ -459,9 +462,23 @@
     <div id="agenda-lijst"></div>
 
     <div class="vaste-artikelen-link" id="open-ics-modal">🔗 Agenda-abonnement (voor iPhone Agenda-app)</div>
+    <div class="vaste-artikelen-link" id="open-ics-import-modal">📥 Externe kalenders koppelen</div>
 
     <button class="fab-add-btn" id="open-afspraak-add-modal" title="Nieuwe afspraak">+</button>
   </section>
+
+  <div class="modal-overlay" id="ics-import-modal-overlay">
+    <div class="modal">
+      <button class="modal-close" id="close-ics-import-modal">✕</button>
+      <h2>Externe kalenders koppelen</h2>
+      <p style="font-size:13px; color:var(--muted); margin-top:-4px;">
+        Deel in Apple Agenda een kalender ("Openbare kalender delen") en plak de link hieronder.
+        Externe afspraken zijn alleen zichtbaar in Gezin, niet bewerkbaar — je kunt ze wel per stuk verbergen.
+      </p>
+      <div id="ics-import-rijen"></div>
+      <div class="vaste-artikelen-link" id="ics-ververs-nu" style="padding-top:10px;">↻ Nu verversen</div>
+    </div>
+  </div>
 
   <section id="tab-content-planner" class="tab-content" style="display:none;">
     <div class="maand-strip">
@@ -779,7 +796,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.27';
+const APP_VERSIE = 'v0.28';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -1109,6 +1126,37 @@ const GezinKalender = (function () {
     return resultaat.sort((a, b) => a.datum.localeCompare(b.datum));
   }
 
+  // Zelfde soort na-de-feiten-samenvoeging als voegTakenToeAanAgenda, nu voor
+  // extern geïmporteerde ICS-afspraken (al geparsed/uitgevouwen tot platte
+  // items — deze functie weet niets van ICS/ical.js zelf, alleen van het
+  // resulterende { type:'extern', uid, titel, datum, tijd, betrokkenen }-vorm).
+  function voegExterneAfsprakenToeAanAgenda(dagen, externeAfspraken, year, month, today) {
+    const { first, last } = getMonthBounds(year, month);
+    const todayIso = toIsoDate(today);
+    const relevant = (externeAfspraken || []).filter(e => e.datum >= first && e.datum <= last);
+    if (relevant.length === 0) return dagen;
+
+    const perDatum = {};
+    for (const e of relevant) {
+      if (!perDatum[e.datum]) perDatum[e.datum] = [];
+      perDatum[e.datum].push(e);
+    }
+
+    const bestaandeDatums = new Set(dagen.map(d => d.datum));
+    const resultaat = dagen.map(dag => {
+      if (!perDatum[dag.datum]) return dag;
+      const verjaardag = dag.items.filter(i => i.type === 'verjaardag');
+      const rest = dag.items.filter(i => i.type !== 'verjaardag');
+      return { ...dag, items: [...verjaardag, ...rest, ...perDatum[dag.datum]] };
+    });
+    for (const datum of Object.keys(perDatum)) {
+      if (!bestaandeDatums.has(datum)) {
+        resultaat.push({ datum, verleden: datum < todayIso, items: perDatum[datum] });
+      }
+    }
+    return resultaat.sort((a, b) => a.datum.localeCompare(b.datum));
+  }
+
   // -----------------------------------------------------------------
   // Tijdsinvoer via getypte tekst (iOS toont bij <input type="time"> altijd
   // het scroll-wiel, geen toetsenbord — vandaar een eigen tekstveld met
@@ -1281,7 +1329,7 @@ const GezinKalender = (function () {
 
   return {
     BETROKKENEN, MAAND_NAMEN, FREQUENTIES, toIsoDate, getMonthBounds, monthLabel, getViewStartDate, computeLeeftijd, normalizeTijd, buildIcsFeedUrl,
-    getBirthdayOccurrencesInMonth, getBirthdaysOverviewForMonth, buildMonthAgenda, voegTakenToeAanAgenda, buildAfspraakInsertPayload, buildAfspraakUpdatePayload, buildVerjaardagInsertPayload,
+    getBirthdayOccurrencesInMonth, getBirthdaysOverviewForMonth, buildMonthAgenda, voegTakenToeAanAgenda, voegExterneAfsprakenToeAanAgenda, buildAfspraakInsertPayload, buildAfspraakUpdatePayload, buildVerjaardagInsertPayload,
     berekenVolgendeDatum, genereerReeksData, berekenNieuweHorizon, moetReeksVerlengdWorden, buildReeksInsertPayload,
     rondAfOpVijfMinuten, parseTijdInvoer, filterAgendaOpBetrokkenen,
   };
@@ -1622,6 +1670,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         if (btn.getAttribute('data-tab') === 'kalender') {
           moetScrollenNaarVandaag = true;
           scrollNaarVandaagIndienNodig();
+          ververExterneAfspraken();
         }
       });
     });
@@ -1973,6 +2022,9 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     let verjaardagen = [];
     let taken = [];
     let subtaken = [];
+    let icsAbonnementen = [];
+    let icsVerborgenUids = new Set();
+    let externeAfsprakenHuidigeMaand = [];
     const vandaag = new Date();
     let bekekenJaar = vandaag.getFullYear();
     let bekekenMaand = vandaag.getMonth(); // 0-indexed
@@ -2120,6 +2172,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       renderVerjaardagenOverzicht();
       let dagen = GezinKalender.buildMonthAgenda(afspraken, verjaardagen, bekekenJaar, bekekenMaand, vandaag);
       dagen = GezinKalender.voegTakenToeAanAgenda(dagen, taken, bekekenJaar, bekekenMaand, vandaag);
+      dagen = GezinKalender.voegExterneAfsprakenToeAanAgenda(dagen, externeAfsprakenHuidigeMaand, bekekenJaar, bekekenMaand, vandaag);
       dagen = GezinKalender.filterAgendaOpBetrokkenen(dagen, actieveFilterKeys);
       if (dagen.length === 0) {
         agendaLijstEl.innerHTML = '<div class="empty-state">Geen afspraken deze maand 🎉</div>';
@@ -2130,14 +2183,16 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         <div class="agenda-dag-groep ${dag.verleden ? 'verleden' : ''}" data-datum="${dag.datum}">
           <div class="agenda-dag-titel">${formatDagTitel(dag.datum)}</div>
           ${dag.items.map(item => `
-            <div class="agenda-item ${item.type === 'verjaardag' ? 'verjaardag' : ''}" ${item.type === 'afspraak' ? `data-id="${item.id}"` : ''}>
+            <div class="agenda-item ${item.type === 'verjaardag' ? 'verjaardag' : ''} ${item.type === 'extern' ? 'extern' : ''}" ${item.type === 'afspraak' ? `data-id="${item.id}"` : ''} ${item.type === 'extern' ? `data-uid="${escapeHtml(item.uid)}"` : ''}>
               ${item.type === 'taak'
                 ? `<div class="checkbox" data-role="toggle-taak-kalender" data-id="${item.id}" style="${(taken.find(t => t.id === item.id) && subtaken.some(s => s.taak_id === item.id)) ? 'opacity:0.4; cursor:default;' : ''}"></div>`
                 : `<span class="tijd">${formatTijdWeergave(item)}</span>`}
-              <span class="titel">${item.type === 'afspraak' && item.reeks_id ? '🔁 ' : ''}${escapeHtml(item.titel)}</span>
+              <span class="titel">${item.type === 'afspraak' && item.reeks_id ? '🔁 ' : ''}${item.type === 'extern' ? '🔗 ' : ''}${escapeHtml(item.titel)}</span>
               ${item.type === 'afspraak' ? renderBetrokkeneBadges(item.betrokkenen) : ''}
               ${item.type === 'taak' ? renderBetrokkeneBadges(item.actiehouders) : ''}
+              ${item.type === 'extern' ? renderBetrokkeneBadges(item.betrokkenen) : ''}
               ${item.type === 'afspraak' ? `<button class="edit-btn" data-role="edit-afspraak" title="Bewerken">✏️</button>` : ''}
+              ${item.type === 'extern' ? `<button class="edit-btn" data-role="verberg-extern" title="Verbergen">✕</button>` : ''}
             </div>
           `).join('')}
         </div>
@@ -2158,6 +2213,18 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           if (!taak) return;
           if (subtaken.some(s => s.taak_id === taak.id)) return; // read-only zolang er subtaken zijn — zelfde regel als op de Taken-tab
           await supabase.from('taken').update({ afgevinkt: true }).eq('id', taak.id);
+        });
+      });
+
+      agendaLijstEl.querySelectorAll('[data-role="verberg-extern"]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const uid = btn.closest('.agenda-item').getAttribute('data-uid');
+          if (!confirm('Deze externe afspraak verbergen uit Gezin? (Blijft gewoon in Apple Agenda staan.)')) return;
+          const { error } = await supabase.from('kalender_ics_verborgen').insert({ uid });
+          if (error) { alert('Kon niet verbergen: ' + error.message); return; }
+          icsVerborgenUids.add(uid);
+          externeAfsprakenHuidigeMaand = externeAfsprakenHuidigeMaand.filter(e => e.uid !== uid);
+          renderAgenda();
         });
       });
 
@@ -2191,17 +2258,20 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       bekekenMaand--;
       if (bekekenMaand < 0) { bekekenMaand = 11; bekekenJaar--; }
       renderAgenda();
+      ververExterneAfspraken();
     });
     document.getElementById('maand-volgende').addEventListener('click', () => {
       bekekenMaand++;
       if (bekekenMaand > 11) { bekekenMaand = 0; bekekenJaar++; }
       renderAgenda();
+      ververExterneAfspraken();
     });
     document.getElementById('maand-vandaag').addEventListener('click', () => {
       bekekenJaar = vandaag.getFullYear();
       bekekenMaand = vandaag.getMonth();
       moetScrollenNaarVandaag = true;
       renderAgenda();
+      ververExterneAfspraken();
     });
 
     document.getElementById('afspraak-add-btn').addEventListener('click', async () => {
@@ -2452,6 +2522,148 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       if (error) { alert('Kon de token niet vervangen: ' + error.message); return; }
       icsInstelling.ics_token = nieuweToken;
       renderIcsUrl();
+    });
+
+    // --- Externe kalenders importeren (ICS-feed, bijv. gedeelde Apple Agenda) ---
+    // Haalt de feed via een Supabase Edge Function op (de browser mag externe
+    // kalenderservers niet rechtstreeks bevragen — geen CORS-toestemming
+    // daarvandaan) en parsed 'm met ical.js, inclusief terugkerende afspraken.
+    function icalTimeNaarJsDate(icalTime) {
+      return new Date(icalTime.year, icalTime.month - 1, icalTime.day, icalTime.isDate ? 0 : icalTime.hour, icalTime.isDate ? 0 : icalTime.minute);
+    }
+    function icalTimeNaarTijdString(icalTime) {
+      if (icalTime.isDate) return null;
+      return `${String(icalTime.hour).padStart(2, '0')}:${String(icalTime.minute).padStart(2, '0')}`;
+    }
+    // Een reeks-afspraak krijgt per voorkomen een eigen uid (uid_datum), zodat
+    // je één specifiek voorkomen kunt verbergen zonder de hele reeks te raken.
+    function parseExterneAfsprakenUitIcs(icsText, betrokkene, vanafIso, totIso) {
+      const resultaten = [];
+      try {
+        const jcalData = ICAL.parse(icsText);
+        const comp = new ICAL.Component(jcalData);
+        const vevents = comp.getAllSubcomponents('vevent');
+        for (const vevent of vevents) {
+          const event = new ICAL.Event(vevent);
+          const titel = event.summary || '(geen titel)';
+          if (event.isRecurring()) {
+            const iterator = event.iterator();
+            let next, teller = 0;
+            while ((next = iterator.next()) && teller < 500) {
+              teller++;
+              const iso = GezinKalender.toIsoDate(icalTimeNaarJsDate(next));
+              if (iso > totIso) break;
+              if (iso >= vanafIso) {
+                resultaten.push({ type: 'extern', uid: `${event.uid}_${iso}`, titel, datum: iso, tijd: icalTimeNaarTijdString(next), betrokkenen: [betrokkene] });
+              }
+            }
+          } else {
+            const iso = GezinKalender.toIsoDate(icalTimeNaarJsDate(event.startDate));
+            if (iso >= vanafIso && iso <= totIso) {
+              resultaten.push({ type: 'extern', uid: event.uid, titel, datum: iso, tijd: icalTimeNaarTijdString(event.startDate), betrokkenen: [betrokkene] });
+            }
+          }
+        }
+      } catch (fout) {
+        console.error('Kon ICS-feed niet verwerken:', fout);
+      }
+      return resultaten;
+    }
+
+    async function ververExterneAfspraken() {
+      if (icsAbonnementen.length === 0) {
+        externeAfsprakenHuidigeMaand = [];
+        renderAgenda();
+        return;
+      }
+      const { first, last } = GezinKalender.getMonthBounds(bekekenJaar, bekekenMaand);
+      const resultatenPerFeed = await Promise.all(icsAbonnementen.map(async (abo) => {
+        try {
+          const resp = await fetch(`${SUPABASE_URL}/functions/v1/ics-proxy?url=${encodeURIComponent(abo.ics_url)}`, {
+            headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+          });
+          if (!resp.ok) throw new Error('status ' + resp.status);
+          const icsText = await resp.text();
+          return parseExterneAfsprakenUitIcs(icsText, abo.betrokkene, first, last);
+        } catch (fout) {
+          console.error(`Kon externe kalender van ${abo.betrokkene} niet ophalen:`, fout);
+          return [];
+        }
+      }));
+      externeAfsprakenHuidigeMaand = resultatenPerFeed.flat().filter(e => !icsVerborgenUids.has(e.uid));
+      renderAgenda();
+    }
+
+    function renderIcsImportRijen() {
+      const el = document.getElementById('ics-import-rijen');
+      el.innerHTML = GezinTaken.ACTIEHOUDERS.map(a => {
+        const bestaand = icsAbonnementen.find(x => x.betrokkene === a.key);
+        return `
+          <div class="add-row" style="align-items:center; margin-top:10px;">
+            <span class="betrokkene-avatar">${BETROKKENE_ICONEN[a.icoon]}</span>
+            <input type="text" class="ics-url-input" data-betrokkene="${a.key}" placeholder="ICS-link van ${escapeHtml(a.naam)}" value="${bestaand ? escapeHtml(bestaand.ics_url) : ''}">
+          </div>
+          <div class="add-row" style="margin-top:6px;">
+            <button class="btn-add" data-role="ics-opslaan" data-betrokkene="${a.key}">Opslaan</button>
+            ${bestaand ? `<button data-role="ics-verwijderen" data-betrokkene="${a.key}" style="background:none; border:1.5px solid var(--danger); color:var(--danger); border-radius:8px; padding:8px 12px; cursor:pointer;">Verwijderen</button>` : ''}
+          </div>
+        `;
+      }).join('');
+      el.querySelectorAll('[data-role="ics-opslaan"]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const betrokkene = btn.getAttribute('data-betrokkene');
+          const input = el.querySelector(`.ics-url-input[data-betrokkene="${betrokkene}"]`);
+          const url = input.value.trim().replace(/^webcal:\/\//i, 'https://');
+          if (!url) { alert('Vul een ICS-link in'); return; }
+          const { error } = await supabase.from('kalender_ics_abonnementen').upsert({ betrokkene, ics_url: url }, { onConflict: 'betrokkene' });
+          if (error) { alert('Kon niet opslaan: ' + error.message); return; }
+          await loadIcsAbonnementen();
+          await ververExterneAfspraken();
+        });
+      });
+      el.querySelectorAll('[data-role="ics-verwijderen"]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const betrokkene = btn.getAttribute('data-betrokkene');
+          if (!confirm('Deze gekoppelde kalender verwijderen?')) return;
+          const { error } = await supabase.from('kalender_ics_abonnementen').delete().eq('betrokkene', betrokkene);
+          if (error) { alert('Kon niet verwijderen: ' + error.message); return; }
+          await loadIcsAbonnementen();
+          await ververExterneAfspraken();
+        });
+      });
+    }
+
+    async function loadIcsAbonnementen() {
+      try {
+        const { data, error } = await supabase.from('kalender_ics_abonnementen').select('*');
+        if (error) throw error;
+        icsAbonnementen = data || [];
+        renderIcsImportRijen();
+      } catch (fout) {
+        console.error(fout);
+      }
+    }
+
+    async function loadIcsVerborgen() {
+      try {
+        const { data, error } = await supabase.from('kalender_ics_verborgen').select('uid');
+        if (error) throw error;
+        icsVerborgenUids = new Set((data || []).map(r => r.uid));
+      } catch (fout) {
+        console.error(fout);
+      }
+    }
+
+    const icsImportModalOverlay = document.getElementById('ics-import-modal-overlay');
+    document.getElementById('open-ics-import-modal').addEventListener('click', () => {
+      renderIcsImportRijen();
+      icsImportModalOverlay.classList.add('open');
+    });
+    document.getElementById('close-ics-import-modal').addEventListener('click', () => {
+      icsImportModalOverlay.classList.remove('open');
+    });
+    document.getElementById('ics-ververs-nu').addEventListener('click', () => {
+      ververExterneAfspraken();
     });
 
     // --- Taken-tab ---
@@ -3278,6 +3490,17 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           loadVerjaardagen();
         })
         .subscribe();
+      supabase.channel('kalender_ics_abonnementen_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'kalender_ics_abonnementen' }, () => {
+          loadIcsAbonnementen();
+          ververExterneAfspraken();
+        })
+        .subscribe();
+      supabase.channel('kalender_ics_verborgen_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'kalender_ics_verborgen' }, () => {
+          loadIcsVerborgen().then(ververExterneAfspraken);
+        })
+        .subscribe();
       supabase.channel('taken_changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'taken' }, () => {
           loadTaken();
@@ -3354,6 +3577,8 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       await loadAfspraken();
       await loadVerjaardagen();
       await loadIcsInstelling();
+      await loadIcsAbonnementen();
+      await loadIcsVerborgen();
       await loadTaken();
       await loadSubtaken();
       await loadRecepten();

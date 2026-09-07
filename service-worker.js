@@ -1,7 +1,7 @@
 // Simpele, read-only offline-fallback voor de app-shell (HTML/manifest/icons/
 // supabase-js library). Live data (Supabase-aanroepen) lopen hier NIET doorheen —
 // die worden al apart offline-vriendelijk afgehandeld in index.html.
-const CACHE_VERSION = 'gezin-shell-v2';
+const CACHE_VERSION = 'gezin-shell-v3';
 
 const APP_SHELL = [
   './',
@@ -11,6 +11,7 @@ const APP_SHELL = [
   './icons/icon-512.png',
   './apple-touch-icon.png',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
+  'https://cdn.jsdelivr.net/npm/ical.js@1.5.0/build/ical.min.js',
 ];
 
 self.addEventListener('install', (event) => {
