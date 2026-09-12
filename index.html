@@ -134,6 +134,17 @@
   li.item.afgevinkt .edit-btn { opacity: 0.5; }
   .empty-state { text-align: center; color: var(--muted); padding: 40px 20px; font-size: 14px; }
 
+  .kalender-zoek-rij { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .kalender-zoek-rij input {
+    flex: 1; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+    font-size: 15px; background: var(--card);
+  }
+  .kalender-zoek-rij button {
+    background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 4px 6px;
+  }
+  .zoek-groep-titel { font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em; margin: 16px 0 6px 4px; }
+  .zoek-groep-titel:first-child { margin-top: 0; }
+
   .maand-strip {
     display: flex; align-items: center; justify-content: space-between;
     background: var(--card); border: 1px solid var(--border); border-radius: 10px;
@@ -304,17 +315,6 @@
   .subtaak-inline-row.afgevinkt .titel { text-decoration: line-through; color: var(--muted); }
   .checkbox.subtaak-checkbox { width: 18px; height: 18px; font-size: 10px; flex-shrink: 0; }
   .subtaak-add-affordance { display: flex; align-items: center; gap: 8px; padding: 2px 0 8px 30px; }
-  .subtaak-add-link {
-    background: none; border: none; color: var(--muted); font-size: 12px; cursor: pointer; padding: 0;
-  }
-  .subtaak-add-link:hover { color: var(--accent); }
-  .subtaak-add-invoer-rij { align-items: center; gap: 6px; padding: 4px 0 8px 30px; }
-  .subtaak-add-invoer-rij .subtaak-connector { color: var(--muted); font-size: 14px; width: 16px; text-align: center; flex-shrink: 0; }
-  .subtaak-inline-input { flex: 1; padding: 6px 10px; font-size: 13px; }
-  .subtaak-inline-add-btn {
-    background: var(--accent); color: #fff; border: none; border-radius: 6px;
-    font-size: 14px; padding: 4px 10px; cursor: pointer; flex-shrink: 0;
-  }
   .subtaak-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
   .subtaak-row .checkbox { flex-shrink: 0; }
   .subtaak-row .titel { flex: 1; font-size: 14px; }
@@ -416,6 +416,7 @@
   <button class="tab-btn" data-tab="taken">✅ Taken</button>
   <button class="tab-btn" data-tab="planner">🍽️ Planner</button>
   <button class="tab-btn" data-tab="recepten">📖 Recepten</button>
+  <button class="tab-btn" data-tab="sjablonen">📋 Sjablonen</button>
 </nav>
 
 <main>
@@ -450,18 +451,27 @@
   </div>
 
   <section id="tab-content-kalender" class="tab-content" style="display:none; position:relative;">
-    <div class="maand-strip">
-      <button id="maand-vorige" class="maand-nav-btn">‹</button>
-      <span id="maand-label" class="maand-label"></span>
-      <button id="maand-volgende" class="maand-nav-btn">›</button>
-      <button id="maand-vandaag" class="maand-vandaag-btn">Vandaag</button>
+    <div class="kalender-zoek-rij">
+      <input type="text" id="kalender-zoek-input" placeholder="🔍 Zoek in de agenda...">
+      <button id="kalender-zoek-wissen" style="display:none;">✕</button>
     </div>
 
-    <div id="verjaardagen-overzicht"></div>
+    <div id="kalender-normale-weergave">
+      <div class="maand-strip">
+        <button id="maand-vorige" class="maand-nav-btn">‹</button>
+        <span id="maand-label" class="maand-label"></span>
+        <button id="maand-volgende" class="maand-nav-btn">›</button>
+        <button id="maand-vandaag" class="maand-vandaag-btn">Vandaag</button>
+      </div>
 
-    <div class="betrokkenen-filter-rij" id="betrokkenen-filter-rij"></div>
+      <div id="verjaardagen-overzicht"></div>
 
-    <div id="agenda-lijst"></div>
+      <div class="betrokkenen-filter-rij" id="betrokkenen-filter-rij"></div>
+
+      <div id="agenda-lijst"></div>
+    </div>
+
+    <div id="kalender-zoek-resultaten" style="display:none;"></div>
 
     <div class="vaste-artikelen-link" id="open-ics-modal">🔗 Agenda-abonnement (voor iPhone Agenda-app)</div>
     <div class="vaste-artikelen-link" id="open-ics-import-modal">📥 Externe kalenders koppelen</div>
@@ -518,22 +528,28 @@
     <button class="fab-add-btn" id="open-taak-add-modal" title="Nieuwe taak">+</button>
   </section>
 
+  <section id="tab-content-sjablonen" class="tab-content" style="display:none; position:relative;">
+    <p style="font-size:13px; color:var(--muted); margin-top:0;">
+      Een sjabloon is een herbruikbare mal. "Overzetten naar Taken" maakt er een nieuwe, losse taak van — het sjabloon zelf blijft staan voor de volgende keer.
+    </p>
+    <div id="sjablonen-lijst"></div>
+
+    <button class="fab-add-btn" id="open-sjabloon-add-modal" title="Nieuw sjabloon">+</button>
+  </section>
+
   <div class="modal-overlay" id="taak-add-modal-overlay">
     <div class="modal">
       <button class="modal-close" id="close-taak-add-modal">✕</button>
-      <h2>Nieuwe taak</h2>
+      <h2 id="taak-add-modal-titel">Nieuwe taak</h2>
       <div class="add-row">
         <input id="taak-titel-input" type="text" placeholder="Titel taak">
       </div>
-      <div class="add-row">
+      <div class="add-row" id="taak-deadline-rij">
         <input id="taak-deadline-input" type="date" placeholder="Deadline (optioneel)">
       </div>
       <div class="betrokkenen-form-titel">Actiehouder (optioneel)</div>
       <div class="betrokkenen-kies-rij">
         <div class="betrokkenen-kies" id="taak-actiehouders-kies"></div>
-        <label class="sjabloon-check-label">
-          <input type="checkbox" id="taak-sjabloon-checkbox"> Sjabloon
-        </label>
       </div>
       <button class="btn-add" id="taak-add-btn" title="Toevoegen" style="width:100%; margin-top:8px;">+ Toevoegen</button>
     </div>
@@ -798,7 +814,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.30';
+const APP_VERSIE = 'v0.31';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -1098,13 +1114,14 @@ const GezinKalender = (function () {
 
   // Voegt taken-met-deadline toe aan een al-opgebouwde agenda (output van
   // buildMonthAgenda) — losse, na-de-feiten stap, zodat buildMonthAgenda zelf
-  // niet hoeft te weten dat Taken bestaat. Alleen niet-afgevinkte taken met een
-  // deadline in de bekeken maand; een afgeronde taak verdwijnt uit de agenda
-  // (in tegenstelling tot afspraken/verjaardagen, die nooit verdwijnen).
+  // niet hoeft te weten dat Taken bestaat. Alleen niet-afgevinkte, niet-sjabloon
+  // taken met een deadline in de bekeken maand — een sjabloon is een mal zonder
+  // eigen datum (hoort hier nooit in te staan) en een afgeronde taak verdwijnt
+  // uit de agenda (in tegenstelling tot afspraken/verjaardagen, die nooit verdwijnen).
   function voegTakenToeAanAgenda(dagen, taken, year, month, today) {
     const { first, last } = getMonthBounds(year, month);
     const todayIso = toIsoDate(today);
-    const relevanteTaken = (taken || []).filter(t => t.deadline && !t.afgevinkt && t.deadline >= first && t.deadline <= last);
+    const relevanteTaken = (taken || []).filter(t => t.deadline && !t.afgevinkt && !t.sjabloon && t.deadline >= first && t.deadline <= last);
     if (relevanteTaken.length === 0) return dagen;
 
     const perDatum = {};
@@ -1329,10 +1346,30 @@ const GezinKalender = (function () {
       .filter(dag => dag.items.length > 0);
   }
 
+  // Zoeken werkt los van de bekeken maand — over ALLE afspraken heen, anders
+  // moet je eerst weten in welke maand iets stond voor je het kunt vinden.
+  // Verjaardagen apart (geen chronologisch sorteerbare "datum" — jaarlijks).
+  function zoekAfspraken(afspraken, zoekterm) {
+    const term = (zoekterm || '').trim().toLowerCase();
+    if (!term) return [];
+    return (afspraken || [])
+      .filter(a => a.titel.toLowerCase().includes(term))
+      .map(a => ({ type: 'afspraak', id: a.id, titel: a.titel, datum: a.datum, tijd: normalizeTijd(a.tijd), eindtijd: normalizeTijd(a.eindtijd), betrokkenen: a.betrokkenen || [], reeks_id: a.reeks_id || null }))
+      .sort((a, b) => a.datum.localeCompare(b.datum));
+  }
+
+  function zoekVerjaardagen(verjaardagen, zoekterm) {
+    const term = (zoekterm || '').trim().toLowerCase();
+    if (!term) return [];
+    return (verjaardagen || [])
+      .filter(v => v.naam.toLowerCase().includes(term))
+      .sort((a, b) => a.maand - b.maand || a.dag - b.dag);
+  }
+
   return {
     BETROKKENEN, MAAND_NAMEN, FREQUENTIES, toIsoDate, getMonthBounds, monthLabel, getViewStartDate, computeLeeftijd, normalizeTijd, buildIcsFeedUrl,
     getBirthdayOccurrencesInMonth, getBirthdaysOverviewForMonth, buildMonthAgenda, voegTakenToeAanAgenda, voegExterneAfsprakenToeAanAgenda, buildAfspraakInsertPayload, buildAfspraakUpdatePayload, buildVerjaardagInsertPayload,
-    berekenVolgendeDatum, genereerReeksData, berekenNieuweHorizon, moetReeksVerlengdWorden, buildReeksInsertPayload,
+    berekenVolgendeDatum, genereerReeksData, berekenNieuweHorizon, moetReeksVerlengdWorden, buildReeksInsertPayload, zoekAfspraken, zoekVerjaardagen,
     rondAfOpVijfMinuten, parseTijdInvoer, filterAgendaOpBetrokkenen,
   };
 })();
@@ -1395,21 +1432,27 @@ const GezinTaken = (function () {
     return alleSubtakenVanTaak.every(s => s.afgevinkt);
   }
 
-  // "Opnieuw starten" van een sjabloon-taak: hoofdtaak + alle subtaken terug
-  // naar onafgevinkt. Route 1 uit het ontwerpgesprek: hergebruikt record,
-  // geen aparte geschiedenis/kopie per keer.
-  function buildResetSjabloonPayload(subtaken) {
-    return {
-      hoofdtaakChanges: { afgevinkt: false },
-      subtaakIds: subtaken.map(s => s.id),
-    };
+  // "Overzetten naar Taken": een sjabloon is een blijvend herbruikbare mal
+  // (eigen tab, geen checkbox) — overzetten maakt een NIEUWE, losse taak aan
+  // met een verse subtaken-kopie; de mal zelf blijft ongewijzigd staan, in
+  // tegenstelling tot het oudere "dezelfde taak resetten"-gedrag.
+  function buildOverzetTaakPayload(sjabloon) {
+    return buildTaakInsertPayload({
+      titel: sjabloon.titel,
+      deadline: null, // een sjabloon draagt geen vaste deadline over — die stel je desgewenst per keer opnieuw in
+      actiehouders: sjabloon.actiehouders,
+      sjabloon: false,
+    });
   }
 
-  // Sorteert de takenlijst in drie groepen: sjablonen (altijd zichtbaar, welke
-  // status ook), open taken (op deadline oplopend, geen-deadline achteraan),
-  // afgevinkte taken (alfabetisch, horen onderaan/gedimd).
+  function buildOverzetSubtakenPayload(subtakenVanSjabloon, nieuweTaakId) {
+    return subtakenVanSjabloon.map(s => ({ titel: s.titel, afgevinkt: false, taak_id: nieuweTaakId }));
+  }
+
+  // Sorteert de (niet-sjabloon) takenlijst: open taken op deadline oplopend
+  // (geen-deadline achteraan), afgevinkte taken alfabetisch onderaan/gedimd.
+  // Sjablonen horen niet meer bij deze lijst — die hebben een eigen tab.
   function sortTakenLijst(taken, todayIso) {
-    const sjablonen = taken.filter(t => t.sjabloon);
     const gewoon = taken.filter(t => !t.sjabloon);
     const open = gewoon.filter(t => !t.afgevinkt).sort((a, b) => {
       if (!a.deadline && !b.deadline) return a.titel.localeCompare(b.titel, 'nl');
@@ -1418,12 +1461,12 @@ const GezinTaken = (function () {
       return a.deadline.localeCompare(b.deadline);
     });
     const afgevinkt = gewoon.filter(t => t.afgevinkt).sort((a, b) => a.titel.localeCompare(b.titel, 'nl'));
-    return { sjablonen, open, afgevinkt };
+    return { open, afgevinkt };
   }
 
   return {
     ACTIEHOUDERS, buildTaakInsertPayload, buildTaakUpdatePayload, buildSubtaakInsertPayload,
-    isTaakVerlopen, berekenVoortgang, bepaalHoofdtaakStatusNaSubtaakToggle, buildResetSjabloonPayload, sortTakenLijst,
+    isTaakVerlopen, berekenVoortgang, bepaalHoofdtaakStatusNaSubtaakToggle, buildOverzetTaakPayload, buildOverzetSubtakenPayload, sortTakenLijst,
   };
 })();
 
@@ -2256,6 +2299,75 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       return `${dagNamen[date.getDay()]} ${d} ${GezinKalender.MAAND_NAMEN[m - 1]}`;
     }
 
+    // --- Zoeken in de agenda (over alle maanden heen, niet gebonden aan de
+    // bekeken maand) ---
+    const kalenderZoekInput = document.getElementById('kalender-zoek-input');
+    const kalenderZoekWissenBtn = document.getElementById('kalender-zoek-wissen');
+    const kalenderNormaleWeergaveEl = document.getElementById('kalender-normale-weergave');
+    const kalenderZoekResultatenEl = document.getElementById('kalender-zoek-resultaten');
+
+    function formatZoekDatum(isoDatum) {
+      const [y, m, d] = isoDatum.split('-').map(Number);
+      return `${d} ${GezinKalender.MAAND_NAMEN[m - 1]} ${y}`;
+    }
+
+    function renderKalenderZoekResultaten() {
+      const term = kalenderZoekInput.value.trim();
+      kalenderZoekWissenBtn.style.display = term ? '' : 'none';
+      if (!term) {
+        kalenderNormaleWeergaveEl.style.display = '';
+        kalenderZoekResultatenEl.style.display = 'none';
+        return;
+      }
+      kalenderNormaleWeergaveEl.style.display = 'none';
+      kalenderZoekResultatenEl.style.display = '';
+
+      const afspraakResultaten = GezinKalender.zoekAfspraken(afspraken, term);
+      const verjaardagResultaten = GezinKalender.zoekVerjaardagen(verjaardagen, term);
+
+      if (afspraakResultaten.length === 0 && verjaardagResultaten.length === 0) {
+        kalenderZoekResultatenEl.innerHTML = '<div class="empty-state">Niets gevonden</div>';
+        return;
+      }
+
+      let html = '';
+      if (afspraakResultaten.length > 0) {
+        html += '<div class="zoek-groep-titel">Afspraken</div>';
+        html += afspraakResultaten.map(item => `
+          <div class="agenda-item" data-id="${item.id}">
+            <span class="tijd">${formatTijdWeergave(item)}</span>
+            <span class="titel">${item.reeks_id ? '🔁 ' : ''}${escapeHtml(item.titel)} — ${formatZoekDatum(item.datum)}</span>
+            ${renderBetrokkeneBadges(item.betrokkenen)}
+            <button class="edit-btn" data-role="edit-afspraak-zoekresultaat" title="Bewerken">✏️</button>
+          </div>
+        `).join('');
+      }
+      if (verjaardagResultaten.length > 0) {
+        html += '<div class="zoek-groep-titel">Verjaardagen</div>';
+        html += verjaardagResultaten.map(v => `
+          <div class="agenda-item verjaardag">
+            <span class="tijd">🎂</span>
+            <span class="titel">${escapeHtml(v.naam)} — ${v.dag} ${GezinKalender.MAAND_NAMEN[v.maand - 1]}${v.jaar ? ` (${v.jaar})` : ''}</span>
+          </div>
+        `).join('');
+      }
+      kalenderZoekResultatenEl.innerHTML = html;
+
+      kalenderZoekResultatenEl.querySelectorAll('[data-role="edit-afspraak-zoekresultaat"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.closest('.agenda-item').getAttribute('data-id');
+          const afspraak = afspraken.find(a => String(a.id) === String(id));
+          if (afspraak) openAfspraakEditModal(afspraak);
+        });
+      });
+    }
+
+    kalenderZoekInput.addEventListener('input', renderKalenderZoekResultaten);
+    kalenderZoekWissenBtn.addEventListener('click', () => {
+      kalenderZoekInput.value = '';
+      renderKalenderZoekResultaten();
+    });
+
     document.getElementById('maand-vorige').addEventListener('click', () => {
       bekekenMaand--;
       if (bekekenMaand < 0) { bekekenMaand = 11; bekekenJaar--; }
@@ -2458,6 +2570,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         if (error) throw error;
         afspraken = data || [];
         renderAgenda();
+        renderKalenderZoekResultaten();
       } catch (fout) {
         console.error(fout);
       }
@@ -2470,6 +2583,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         verjaardagen = data || [];
         renderVerjaardagenLijst();
         renderAgenda();
+        renderKalenderZoekResultaten();
       } catch (fout) {
         console.error(fout);
       }
@@ -2684,17 +2798,19 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     function renderTakenLijst() {
       const el = document.getElementById('taken-lijst');
       const todayIso = GezinKalender.toIsoDate(vandaag);
-      const { sjablonen, open, afgevinkt } = GezinTaken.sortTakenLijst(taken, todayIso);
+      const { open, afgevinkt } = GezinTaken.sortTakenLijst(taken, todayIso);
 
       function renderTaakItem(taak) {
         const subs = subtaken.filter(s => s.taak_id === taak.id);
         const voortgang = GezinTaken.berekenVoortgang(subs);
         const verlopen = GezinTaken.isTaakVerlopen(taak, todayIso);
         const heeftSubtaken = subs.length > 0;
-        const actieKnop = taak.sjabloon
-          ? `<button class="sjabloon-restart-btn" data-role="reset-sjabloon" data-id="${taak.id}">🔁 Opnieuw starten</button>`
-          : `<div class="checkbox" data-role="toggle-taak" data-id="${taak.id}" style="${heeftSubtaken ? 'opacity:0.4; cursor:default;' : ''}">${taak.afgevinkt ? '✓' : ''}</div>`;
+        const checkboxHtml = `<div class="checkbox" data-role="toggle-taak" data-id="${taak.id}" style="${heeftSubtaken ? 'opacity:0.4; cursor:default;' : ''}">${taak.afgevinkt ? '✓' : ''}</div>`;
 
+        // Subtaken zijn zeldzaam (~10% van de taken) — geen permanente
+        // "+ subtaak"-regel meer voor de overige 90%; toevoegen gaat voortaan
+        // via "Bewerken" (die heeft al een volledig subtaken-beheer). Bestaande
+        // subtaken blijven wel gewoon inline afvinkbaar.
         const subtakenHtml = subs.map(s => `
           <div class="subtaak-inline-row ${s.afgevinkt ? 'afgevinkt' : ''}" data-id="${s.id}">
             <span class="subtaak-connector">↳</span>
@@ -2703,21 +2819,9 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           </div>
         `).join('');
 
-        const subtaakAddHtml = `
-          <div class="subtaak-add-affordance" data-taak-id="${taak.id}">
-            <span class="subtaak-connector">↳</span>
-            <button class="subtaak-add-link" data-role="toon-subtaak-invoer" data-taak-id="${taak.id}">+ subtaak</button>
-          </div>
-          <div class="subtaak-add-invoer-rij" data-taak-id="${taak.id}" style="display:none;">
-            <span class="subtaak-connector">↳</span>
-            <input type="text" class="subtaak-inline-input" placeholder="Nieuwe subtaak" data-taak-id="${taak.id}">
-            <button class="subtaak-inline-add-btn" data-role="voeg-subtaak-inline-toe" data-taak-id="${taak.id}">+</button>
-          </div>
-        `;
-
         return `
           <div class="taak-item ${taak.afgevinkt ? 'afgevinkt' : ''}" data-id="${taak.id}">
-            ${actieKnop}
+            ${checkboxHtml}
             <div style="flex:1; min-width:0;">
               <div class="titel">${escapeHtml(taak.titel)}</div>
               ${heeftSubtaken ? `<div class="sub-info">${voortgang.klaar}/${voortgang.totaal} subtaken</div>` : ''}
@@ -2727,7 +2831,6 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
             <button class="edit-btn" data-role="edit-taak" data-id="${taak.id}" title="Bewerken">✏️</button>
           </div>
           ${subtakenHtml}
-          ${subtaakAddHtml}
         `;
       }
 
@@ -2739,7 +2842,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         return kopHtml + lijst.map(renderTaakItem).join('');
       }
 
-      const html = renderGroep('📋 Sjablonen', sjablonen) + renderGroep('✅ Taken', open) + renderGroep('Afgerond', afgevinkt, true);
+      const html = renderGroep('✅ Taken', open) + renderGroep('Afgerond', afgevinkt, true);
       el.innerHTML = html || '<div class="empty-state">Nog geen taken 🎉</div>';
 
       const verwijderAfgerondeBtn = document.getElementById('verwijder-afgeronde-taken-btn');
@@ -2767,72 +2870,96 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           if (taak) openTaakDetailModal(taak);
         });
       });
-      el.querySelectorAll('[data-role="reset-sjabloon"]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const id = btn.getAttribute('data-id');
-          const taak = taken.find(t => String(t.id) === String(id));
-          if (!taak) return;
-          const subs = subtaken.filter(s => s.taak_id === taak.id);
-          const resetPayload = GezinTaken.buildResetSjabloonPayload(subs);
-          await supabase.from('taken').update(resetPayload.hoofdtaakChanges).eq('id', taak.id);
-          for (const subId of resetPayload.subtaakIds) {
-            await supabase.from('taken_subtaken').update({ afgevinkt: false }).eq('id', subId);
-          }
-        });
-      });
 
-      // --- Subtaken direct in de hoofdlijst: afvinken + subtiel toevoegen ---
       el.querySelectorAll('[data-role="toggle-subtaak-inline"]').forEach(checkboxEl => {
         checkboxEl.addEventListener('click', async () => {
           await toggleSubtaakEnHoofdtaak(checkboxEl.getAttribute('data-id'));
         });
       });
-      el.querySelectorAll('[data-role="toon-subtaak-invoer"]').forEach(link => {
-        link.addEventListener('click', () => {
-          const taakId = link.getAttribute('data-taak-id');
-          const affordance = el.querySelector(`.subtaak-add-affordance[data-taak-id="${taakId}"]`);
-          const invoerRij = el.querySelector(`.subtaak-add-invoer-rij[data-taak-id="${taakId}"]`);
-          if (affordance) affordance.style.display = 'none';
-          if (invoerRij) {
-            invoerRij.style.display = 'flex';
-            const input = invoerRij.querySelector('.subtaak-inline-input');
-            if (input) input.focus();
-          }
+
+      renderSjablonenLijst();
+    }
+
+    // --- Sjablonen: eigen tab, blijvend herbruikbare mal (geen checkbox) ---
+    function renderSjablonenLijst() {
+      const el = document.getElementById('sjablonen-lijst');
+      if (!el) return;
+      const sjablonen = taken.filter(t => t.sjabloon);
+      if (sjablonen.length === 0) {
+        el.innerHTML = '<div class="empty-state">Nog geen sjablonen 📋</div>';
+        return;
+      }
+      el.innerHTML = sjablonen.map(s => {
+        const subs = subtaken.filter(x => x.taak_id === s.id);
+        return `
+          <div class="taak-item" data-id="${s.id}">
+            <div style="flex:1; min-width:0;">
+              <div class="titel">${escapeHtml(s.titel)}</div>
+              ${subs.length ? `<div class="sub-info">${subs.map(x => escapeHtml(x.titel)).join(', ')}</div>` : ''}
+            </div>
+            ${renderActiehouderBadges(s.actiehouders)}
+            <button class="edit-btn" data-role="edit-taak" data-id="${s.id}" title="Bewerken">✏️</button>
+          </div>
+          <div class="subtaak-add-affordance" style="padding-left:0;">
+            <button class="sjabloon-restart-btn" data-role="overzet-sjabloon" data-id="${s.id}">➕ Overzetten naar Taken</button>
+          </div>
+        `;
+      }).join('');
+      el.querySelectorAll('[data-role="edit-taak"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-id');
+          const taak = taken.find(t => String(t.id) === String(id));
+          if (taak) openTaakDetailModal(taak);
         });
       });
-      el.querySelectorAll('[data-role="voeg-subtaak-inline-toe"]').forEach(btn => {
+      el.querySelectorAll('[data-role="overzet-sjabloon"]').forEach(btn => {
         btn.addEventListener('click', async () => {
-          const taakIdAttr = btn.getAttribute('data-taak-id');
-          const taak = taken.find(t => String(t.id) === String(taakIdAttr));
-          if (!taak) return;
-          const invoerRij = el.querySelector(`.subtaak-add-invoer-rij[data-taak-id="${taakIdAttr}"]`);
-          const input = invoerRij ? invoerRij.querySelector('.subtaak-inline-input') : null;
-          if (!input) return;
-          let payload;
-          try {
-            payload = GezinTaken.buildSubtaakInsertPayload({ titel: input.value });
-          } catch (err) {
-            alert(err.message);
-            return;
-          }
-          // taak.id gebruiken (niet de string-attribuutwaarde) — zelfde type als
-          // overal elders, anders matcht het filteren op subtaken straks niet meer.
-          const { error } = await supabase.from('taken_subtaken').insert({ ...payload, taak_id: taak.id });
-          if (error) { alert('Kon subtaak niet toevoegen: ' + error.message); return; }
-          input.value = '';
-        });
-      });
-      el.querySelectorAll('.subtaak-inline-input').forEach(input => {
-        input.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            const taakId = input.getAttribute('data-taak-id');
-            el.querySelector(`[data-role="voeg-subtaak-inline-toe"][data-taak-id="${taakId}"]`).click();
-          }
+          const id = btn.getAttribute('data-id');
+          const sjabloon = taken.find(t => String(t.id) === String(id));
+          if (sjabloon) await overzetSjabloonNaarTaak(sjabloon);
         });
       });
     }
 
+    async function overzetSjabloonNaarTaak(sjabloon) {
+      let payload;
+      try {
+        payload = GezinTaken.buildOverzetTaakPayload(sjabloon);
+      } catch (err) {
+        alert(err.message);
+        return;
+      }
+      const { data, error } = await supabase.from('taken').insert(payload).select();
+      if (error) { alert('Kon sjabloon niet overzetten: ' + error.message); return; }
+      const nieuweTaak = data && data[0];
+      if (!nieuweTaak) return;
+      const subsVanSjabloon = subtaken.filter(s => s.taak_id === sjabloon.id);
+      if (subsVanSjabloon.length > 0) {
+        const nieuweSubs = GezinTaken.buildOverzetSubtakenPayload(subsVanSjabloon, nieuweTaak.id);
+        const { data: subsData, error: subsError } = await supabase.from('taken_subtaken').insert(nieuweSubs).select();
+        if (subsError) { alert('Taak is aangemaakt, maar subtaken konden niet worden gekopieerd: ' + subsError.message); }
+        if (subsData) subtaken = [...subtaken, ...subsData];
+      }
+      taken = [...taken, nieuweTaak];
+      renderTakenLijst();
+      toonToast(`✓ "${sjabloon.titel}" overgezet naar Taken`);
+    }
+
+    // De "Nieuwe taak"-modal wordt gedeeld met "Nieuw sjabloon" (Sjablonen-tab)
+    // — welke van de twee bepaalt de context, niet meer een checkbox in het
+    // formulier zelf (die zat voorheen hier, verwarrend nu sjablonen een eigen
+    // tab hebben).
+    let nieuweTaakIsSjabloon = false;
     document.getElementById('open-taak-add-modal').addEventListener('click', () => {
+      nieuweTaakIsSjabloon = false;
+      document.getElementById('taak-add-modal-titel').textContent = 'Nieuwe taak';
+      document.getElementById('taak-deadline-rij').style.display = '';
+      document.getElementById('taak-add-modal-overlay').classList.add('open');
+    });
+    document.getElementById('open-sjabloon-add-modal').addEventListener('click', () => {
+      nieuweTaakIsSjabloon = true;
+      document.getElementById('taak-add-modal-titel').textContent = 'Nieuw sjabloon';
+      document.getElementById('taak-deadline-rij').style.display = 'none';
       document.getElementById('taak-add-modal-overlay').classList.add('open');
     });
     document.getElementById('close-taak-add-modal').addEventListener('click', () => {
@@ -2843,9 +2970,9 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       try {
         payload = GezinTaken.buildTaakInsertPayload({
           titel: document.getElementById('taak-titel-input').value,
-          deadline: document.getElementById('taak-deadline-input').value,
+          deadline: nieuweTaakIsSjabloon ? null : document.getElementById('taak-deadline-input').value,
           actiehouders: taakActiehoudersKies.getGekozen(),
-          sjabloon: document.getElementById('taak-sjabloon-checkbox').checked,
+          sjabloon: nieuweTaakIsSjabloon,
         });
       } catch (err) {
         alert(err.message);
@@ -2855,7 +2982,6 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       if (error) { alert('Kon niet toevoegen: ' + error.message); return; }
       document.getElementById('taak-titel-input').value = '';
       document.getElementById('taak-deadline-input').value = '';
-      document.getElementById('taak-sjabloon-checkbox').checked = false;
       taakActiehoudersKies.reset();
       document.getElementById('taak-add-modal-overlay').classList.remove('open');
     });
