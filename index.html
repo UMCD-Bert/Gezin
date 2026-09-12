@@ -820,7 +820,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.32';
+const APP_VERSIE = 'v0.33';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -828,16 +828,16 @@ const APP_VERSIE = 'v0.32';
 const BETROKKENE_ICONEN = {
   bert: `<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
     <circle cx="20" cy="20" r="19" fill="#e8eaed"/>
-    <ellipse cx="20" cy="29" rx="8.5" ry="7" fill="#9aa0a6"/>
-    <ellipse cx="20" cy="21" rx="9" ry="10" fill="#f2c9a0"/>
-    <ellipse cx="20" cy="11" rx="10.5" ry="7" fill="#9aa0a6"/>
-    <circle cx="15" cy="20" r="4" fill="none" stroke="#2b2f33" stroke-width="1.6"/>
-    <circle cx="25" cy="20" r="4" fill="none" stroke="#2b2f33" stroke-width="1.6"/>
-    <line x1="19" y1="20" x2="21" y2="20" stroke="#2b2f33" stroke-width="1.6"/>
+    <ellipse cx="20" cy="28.5" rx="9" ry="6.5" fill="#4a4a4d"/>
+    <ellipse cx="20" cy="21" rx="10" ry="9.2" fill="#f2c9a0"/>
+    <ellipse cx="20" cy="11.5" rx="10.5" ry="6.5" fill="#4a4a4d"/>
+    <circle cx="15" cy="20" r="4" fill="none" stroke="#2e8b57" stroke-width="1.8"/>
+    <circle cx="25" cy="20" r="4" fill="none" stroke="#2e8b57" stroke-width="1.8"/>
+    <line x1="19" y1="20" x2="21" y2="20" stroke="#2e8b57" stroke-width="1.8"/>
   </svg>`,
   ellen: `<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
     <circle cx="20" cy="20" r="19" fill="#e8eaed"/>
-    <g fill="#3a2b22">
+    <g fill="#4a4a4d">
       <circle cx="10" cy="14" r="4.2"/><circle cx="9" cy="20" r="4"/><circle cx="10.5" cy="26" r="3.6"/>
       <circle cx="30" cy="14" r="4.2"/><circle cx="31" cy="20" r="4"/><circle cx="29.5" cy="26" r="3.6"/>
       <circle cx="14" cy="9" r="4.5"/><circle cx="20" cy="7" r="4.8"/><circle cx="26" cy="9" r="4.5"/>
@@ -1227,7 +1227,6 @@ const GezinKalender = (function () {
     if (!datum) throw new Error('Datum is verplicht');
     const geldigeKeys = BETROKKENEN.map(b => b.key);
     const gekozen = Array.isArray(betrokkenen) ? betrokkenen : [];
-    if (gekozen.length === 0) throw new Error('Kies minstens één betrokkene');
     if (!gekozen.every(k => geldigeKeys.includes(k))) throw new Error('Ongeldige betrokkene');
     const tijdWaarde = tijd && tijd.trim() ? tijd.trim() : null;
     const eindtijdWaarde = eindtijd && eindtijd.trim() ? eindtijd.trim() : null;
