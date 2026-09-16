@@ -806,6 +806,7 @@
       </select>
     </div>
     <button class="btn-add" id="edit-afspraak-save-btn" style="margin-top:8px; width:100%;">Opslaan</button>
+    <button id="edit-afspraak-verwijder-btn" style="background:none; border:1px solid var(--danger); color:var(--danger); border-radius:8px; padding:8px 12px; width:100%; cursor:pointer; margin-top:8px;">🗑 Afspraak verwijderen</button>
     <div id="edit-afspraak-reeks-sectie" style="display:none; margin-top:14px; padding-top:12px; border-top:1px solid var(--border);">
       <div style="font-size:13px; color:var(--muted); margin-bottom:6px;">🔁 Onderdeel van een herhalende reeks</div>
       <button id="edit-afspraak-stop-reeks-btn" style="background:none; border:1px solid var(--danger); color:var(--danger); border-radius:8px; padding:8px 12px; width:100%; cursor:pointer;">Stop deze reeks vanaf nu</button>
@@ -885,7 +886,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.36';
+const APP_VERSIE = 'v0.37';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -2752,6 +2753,15 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       }
       const { error } = await supabase.from('kalender_afspraken').update(payload).eq('id', editingAfspraakId);
       if (error) { alert('Kon niet opslaan: ' + error.message); return; }
+      afspraakEditModalOverlay.classList.remove('open');
+      editingAfspraakId = null;
+      editingAfspraakReeksId = null;
+    });
+    document.getElementById('edit-afspraak-verwijder-btn').addEventListener('click', async () => {
+      if (editingAfspraakId == null) return;
+      if (!confirm('Deze afspraak verwijderen?')) return;
+      const { error } = await supabase.from('kalender_afspraken').delete().eq('id', editingAfspraakId);
+      if (error) { alert('Kon niet verwijderen: ' + error.message); return; }
       afspraakEditModalOverlay.classList.remove('open');
       editingAfspraakId = null;
       editingAfspraakReeksId = null;
