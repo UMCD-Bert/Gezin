@@ -745,10 +745,13 @@
     <div class="add-row" style="margin-top:10px;">
       <select id="afspraak-herinnering-select">
         <option value="">Geen herinnering</option>
-        <option value="10">Herinner 10 minuten van tevoren</option>
-        <option value="30">Herinner 30 minuten van tevoren</option>
-        <option value="60">Herinner 1 uur van tevoren</option>
-        <option value="1440">Herinner 1 dag van tevoren</option>
+        <option value="5">5 min</option>
+        <option value="10">10 min</option>
+        <option value="15">15 min</option>
+        <option value="30">30 min</option>
+        <option value="60">1 uur</option>
+        <option value="120">2 uur</option>
+        <option value="1440">1 dag</option>
       </select>
     </div>
     <button class="btn-add" id="afspraak-add-btn" title="Toevoegen" style="width:100%; margin-top:8px;">+ Toevoegen</button>
@@ -793,10 +796,13 @@
     <div class="add-row" style="margin-top:10px;">
       <select id="edit-afspraak-herinnering-select">
         <option value="">Geen herinnering</option>
-        <option value="10">Herinner 10 minuten van tevoren</option>
-        <option value="30">Herinner 30 minuten van tevoren</option>
-        <option value="60">Herinner 1 uur van tevoren</option>
-        <option value="1440">Herinner 1 dag van tevoren</option>
+        <option value="5">5 min</option>
+        <option value="10">10 min</option>
+        <option value="15">15 min</option>
+        <option value="30">30 min</option>
+        <option value="60">1 uur</option>
+        <option value="120">2 uur</option>
+        <option value="1440">1 dag</option>
       </select>
     </div>
     <button class="btn-add" id="edit-afspraak-save-btn" style="margin-top:8px; width:100%;">Opslaan</button>
@@ -879,7 +885,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.35';
+const APP_VERSIE = 'v0.36';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -1375,7 +1381,7 @@ const GezinKalender = (function () {
   // Herinneringen gaan via pushmeldingen naar de betrokken persoon/personen
   // zelf (Bert/Ellen — auto's kunnen geen melding ontvangen) — vandaar dat
   // een herinnering een starttijd én minstens één persoon-betrokkene vereist.
-  const HERINNERING_OPTIES = [10, 30, 60, 1440];
+  const HERINNERING_OPTIES = [5, 10, 15, 30, 60, 120, 1440];
   const HERINNERING_PERSOON_KEYS = ['bert', 'ellen'];
 
   function buildAfspraakInsertPayload({ titel, datum, tijd, eindtijd, betrokkenen, herinneringMinuten }) {
