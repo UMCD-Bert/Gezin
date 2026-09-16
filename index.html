@@ -198,9 +198,26 @@
   .agenda-item .tijd { font-size: 13px; color: var(--muted); min-width: 42px; }
   .agenda-item .titel { flex: 1; font-size: 15px; }
   .agenda-item.verjaardag { background: #fff7e6; }
+  .agenda-item.feestdag { background: #eafaf1; }
   .agenda-item.extern { opacity: 0.85; }
   .agenda-item.extern .titel { color: var(--muted); }
   .agenda-item .edit-btn { flex-shrink: 0; }
+
+  .maand-grid-headers { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
+  .maand-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .maand-grid-cel {
+    min-height: 62px; border: 1px solid var(--border); border-radius: 8px; padding: 3px;
+    background: var(--card); cursor: pointer; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .maand-grid-cel.buiten-maand { opacity: 0.35; }
+  .maand-grid-cel.vandaag { border: 2px solid var(--accent); }
+  .maand-grid-dagnummer { font-size: 11px; font-weight: 600; margin-bottom: 2px; }
+  .maand-grid-items { display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
+  .maand-grid-item {
+    color: #fff; border-radius: 3px; padding: 0 3px; font-size: 9.5px; line-height: 14px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .maand-grid-meer { font-size: 9px; color: var(--muted); }
   .wie-badge {
     font-size: 11px; border-radius: 100px; padding: 2px 8px; white-space: nowrap; color: #fff;
   }
@@ -468,6 +485,7 @@
         <span id="maand-label" class="maand-label"></span>
         <button id="maand-volgende" class="maand-nav-btn">›</button>
         <button id="maand-vandaag" class="maand-vandaag-btn">Vandaag</button>
+        <button id="kalender-weergave-toggle" class="maand-vandaag-btn" title="Wissel naar maandoverzicht">🗓️</button>
       </div>
 
       <div id="verjaardagen-overzicht"></div>
@@ -475,6 +493,7 @@
       <div class="betrokkenen-filter-rij" id="betrokkenen-filter-rij"></div>
 
       <div id="agenda-lijst"></div>
+      <div id="kalender-maand-grid" style="display:none;"></div>
     </div>
 
     <div id="kalender-zoek-resultaten" style="display:none;"></div>
@@ -820,7 +839,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.33';
+const APP_VERSIE = 'v0.34';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -1086,6 +1105,95 @@ const GezinKalender = (function () {
     return t ? t.slice(0, 5) : null;
   }
 
+  // -----------------------------------------------------------------
+  // Nederlandse feestdagen — puur berekend (geen database-rijen), dus
+  // nooit per ongeluk verwijderbaar. Pasen als anker via de bekende
+  // "anonieme Gregoriaanse" formule (Meeus/Jones/Butcher), de rest
+  // daarvan afgeleid of vast op datum.
+  // -----------------------------------------------------------------
+  function berekenPasenDatum(jaar) {
+    const a = jaar % 19;
+    const b = Math.floor(jaar / 100);
+    const c = jaar % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const maand = Math.floor((h + l - 7 * m + 114) / 31); // 3 = maart, 4 = april
+    const dag = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(jaar, maand - 1, dag);
+  }
+
+  function voegDagenToe(datum, aantal) {
+    const d = new Date(datum.getTime());
+    d.setDate(d.getDate() + aantal);
+    return d;
+  }
+
+  // Koningsdag is 27 april, behalve als dat op een zondag valt — dan 26 april.
+  function berekenKoningsdag(jaar) {
+    const datum = new Date(jaar, 3, 27);
+    if (datum.getDay() === 0) datum.setDate(26);
+    return datum;
+  }
+
+  function getNederlandseFeestdagen(jaar) {
+    const pasen = berekenPasenDatum(jaar);
+    return [
+      { naam: 'Nieuwjaarsdag', datum: toIsoDate(new Date(jaar, 0, 1)) },
+      { naam: 'Goede Vrijdag', datum: toIsoDate(voegDagenToe(pasen, -2)) },
+      { naam: 'Eerste Paasdag', datum: toIsoDate(pasen) },
+      { naam: 'Tweede Paasdag', datum: toIsoDate(voegDagenToe(pasen, 1)) },
+      { naam: 'Koningsdag', datum: toIsoDate(berekenKoningsdag(jaar)) },
+      { naam: 'Bevrijdingsdag', datum: toIsoDate(new Date(jaar, 4, 5)) },
+      { naam: 'Hemelvaartsdag', datum: toIsoDate(voegDagenToe(pasen, 39)) },
+      { naam: 'Eerste Pinksterdag', datum: toIsoDate(voegDagenToe(pasen, 49)) },
+      { naam: 'Tweede Pinksterdag', datum: toIsoDate(voegDagenToe(pasen, 50)) },
+      { naam: 'Eerste Kerstdag', datum: toIsoDate(new Date(jaar, 11, 25)) },
+      { naam: 'Tweede Kerstdag', datum: toIsoDate(new Date(jaar, 11, 26)) },
+    ];
+  }
+
+  function getFeestdagenInMaand(jaar, maand) {
+    return getNederlandseFeestdagen(jaar)
+      .filter(f => (Number(f.datum.slice(5, 7)) - 1) === maand)
+      .map(f => ({ type: 'feestdag', naam: f.naam, titel: `🎉 ${f.naam}`, datum: f.datum }));
+  }
+
+  // -----------------------------------------------------------------
+  // Geometrie voor de maandgrid-weergave — welke datums op welke plek in
+  // het grid staan (incl. opvuldagen van vorige/volgende maand tot volle
+  // weken, maandag als eerste kolom). Weet niets van afspraken/data zelf.
+  // -----------------------------------------------------------------
+  function buildMaandGridWeken(year, month) {
+    const eersteVanMaand = new Date(year, month, 1);
+    const laatsteVanMaand = new Date(year, month + 1, 0);
+    const eersteWeekdag = (eersteVanMaand.getDay() + 6) % 7; // maandag = 0
+    const cellen = [];
+    for (let i = eersteWeekdag; i > 0; i--) {
+      const d = new Date(year, month, 1 - i);
+      cellen.push({ datum: toIsoDate(d), dagNummer: d.getDate(), buitenMaand: true });
+    }
+    for (let dag = 1; dag <= laatsteVanMaand.getDate(); dag++) {
+      const d = new Date(year, month, dag);
+      cellen.push({ datum: toIsoDate(d), dagNummer: dag, buitenMaand: false });
+    }
+    while (cellen.length % 7 !== 0) {
+      const laatste = cellen[cellen.length - 1];
+      const [y, m, dd] = laatste.datum.split('-').map(Number);
+      const d = new Date(y, m - 1, dd + 1);
+      cellen.push({ datum: toIsoDate(d), dagNummer: d.getDate(), buitenMaand: true });
+    }
+    const weken = [];
+    for (let i = 0; i < cellen.length; i += 7) weken.push(cellen.slice(i, i + 7));
+    return weken;
+  }
+
   // Bouwt de volledige, per-dag-gegroepeerde agenda voor de bekeken maand —
   // de HELE maand, verleden dagen inbegrepen (elke dag krijgt een `verleden`-
   // vlag t.o.v. vandaag, voor visuele dimming in de UI). Volgorde binnen een
@@ -1099,8 +1207,9 @@ const GezinKalender = (function () {
       .map(a => ({ type: 'afspraak', id: a.id, titel: a.titel, datum: a.datum, tijd: normalizeTijd(a.tijd), eindtijd: normalizeTijd(a.eindtijd), betrokkenen: a.betrokkenen || [], reeks_id: a.reeks_id || null }));
 
     const verjaardagItems = getBirthdayOccurrencesInMonth(verjaardagen, year, month);
+    const feestdagItems = getFeestdagenInMaand(year, month);
 
-    const alleItems = [...afspraakItems, ...verjaardagItems];
+    const alleItems = [...afspraakItems, ...verjaardagItems, ...feestdagItems];
 
     const perDag = {};
     for (const item of alleItems) {
@@ -1112,9 +1221,10 @@ const GezinKalender = (function () {
     return dagen.map(datum => {
       const items = perDag[datum];
       const verjaardag = items.filter(i => i.type === 'verjaardag');
+      const feestdag = items.filter(i => i.type === 'feestdag');
       const zonderTijd = items.filter(i => i.type === 'afspraak' && !i.tijd);
       const metTijd = items.filter(i => i.type === 'afspraak' && i.tijd).sort((a, b) => a.tijd.localeCompare(b.tijd));
-      return { datum, verleden: datum < todayIso, items: [...verjaardag, ...zonderTijd, ...metTijd] };
+      return { datum, verleden: datum < todayIso, items: [...verjaardag, ...feestdag, ...zonderTijd, ...metTijd] };
     });
   }
 
@@ -1139,9 +1249,9 @@ const GezinKalender = (function () {
     const bestaandeDatums = new Set(dagen.map(d => d.datum));
     const resultaat = dagen.map(dag => {
       if (!perDatum[dag.datum]) return dag;
-      const verjaardag = dag.items.filter(i => i.type === 'verjaardag');
-      const rest = dag.items.filter(i => i.type !== 'verjaardag');
-      return { ...dag, items: [...verjaardag, ...perDatum[dag.datum], ...rest] };
+      const vast = dag.items.filter(i => i.type === 'verjaardag' || i.type === 'feestdag');
+      const rest = dag.items.filter(i => i.type !== 'verjaardag' && i.type !== 'feestdag');
+      return { ...dag, items: [...vast, ...perDatum[dag.datum], ...rest] };
     });
     for (const datum of Object.keys(perDatum)) {
       if (!bestaandeDatums.has(datum)) {
@@ -1170,9 +1280,9 @@ const GezinKalender = (function () {
     const bestaandeDatums = new Set(dagen.map(d => d.datum));
     const resultaat = dagen.map(dag => {
       if (!perDatum[dag.datum]) return dag;
-      const verjaardag = dag.items.filter(i => i.type === 'verjaardag');
-      const rest = dag.items.filter(i => i.type !== 'verjaardag');
-      return { ...dag, items: [...verjaardag, ...rest, ...perDatum[dag.datum]] };
+      const vast = dag.items.filter(i => i.type === 'verjaardag' || i.type === 'feestdag');
+      const rest = dag.items.filter(i => i.type !== 'verjaardag' && i.type !== 'feestdag');
+      return { ...dag, items: [...vast, ...rest, ...perDatum[dag.datum]] };
     });
     for (const datum of Object.keys(perDatum)) {
       if (!bestaandeDatums.has(datum)) {
@@ -1346,7 +1456,7 @@ const GezinKalender = (function () {
     return dagen
       .map(dag => ({
         ...dag,
-        items: dag.items.filter(item => item.type === 'verjaardag' || (item.betrokkenen || []).some(k => geselecteerd.includes(k))),
+        items: dag.items.filter(item => item.type === 'verjaardag' || item.type === 'feestdag' || (item.betrokkenen || []).some(k => geselecteerd.includes(k))),
       }))
       .filter(dag => dag.items.length > 0);
   }
@@ -1376,6 +1486,7 @@ const GezinKalender = (function () {
     getBirthdayOccurrencesInMonth, getBirthdaysOverviewForMonth, buildMonthAgenda, voegTakenToeAanAgenda, voegExterneAfsprakenToeAanAgenda, buildAfspraakInsertPayload, buildAfspraakUpdatePayload, buildVerjaardagInsertPayload,
     berekenVolgendeDatum, genereerReeksData, berekenNieuweHorizon, moetReeksVerlengdWorden, buildReeksInsertPayload, zoekAfspraken, zoekVerjaardagen,
     rondAfOpVijfMinuten, parseTijdInvoer, filterAgendaOpBetrokkenen,
+    berekenPasenDatum, getNederlandseFeestdagen, getFeestdagenInMaand, buildMaandGridWeken,
   };
 })();
 
@@ -2185,6 +2296,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 
     function formatTijdWeergave(item) {
       if (item.type === 'verjaardag') return '🎂';
+      if (item.type === 'feestdag') return '🎉';
       if (!item.tijd) return '';
       return item.eindtijd ? `${item.tijd} - ${item.eindtijd}` : item.tijd;
     }
@@ -2216,8 +2328,73 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     }
 
     let editingAfspraakId = null;
+    let weergaveIsGrid = false;
+
+    // Kleur van een grid-item: eerste betrokkene z'n eigen kleur, anders een
+    // vaste kleur per type (net als de badges in de lijstweergave).
+    function kleurVoorGridItem(item) {
+      if (item.type === 'verjaardag') return '#e8b923';
+      if (item.type === 'feestdag') return '#2e8b57';
+      if (item.type === 'taak') return '#8b5cf6';
+      if (item.type === 'extern') return '#9aa0a6';
+      const eersteBetrokkene = (item.betrokkenen || [])[0];
+      const b = eersteBetrokkene && GezinKalender.BETROKKENEN.find(x => x.key === eersteBetrokkene);
+      return b ? b.kleur : '#3b82f6';
+    }
+
+    function renderMaandGrid() {
+      const weken = GezinKalender.buildMaandGridWeken(bekekenJaar, bekekenMaand);
+      let dagen = GezinKalender.buildMonthAgenda(afspraken, verjaardagen, bekekenJaar, bekekenMaand, vandaag);
+      dagen = GezinKalender.voegTakenToeAanAgenda(dagen, taken, bekekenJaar, bekekenMaand, vandaag);
+      dagen = GezinKalender.voegExterneAfsprakenToeAanAgenda(dagen, externeAfsprakenHuidigeMaand, bekekenJaar, bekekenMaand, vandaag);
+      dagen = GezinKalender.filterAgendaOpBetrokkenen(dagen, actieveFilterKeys);
+      const perDatum = {};
+      dagen.forEach(d => { perDatum[d.datum] = d.items; });
+      const vandaagIso = GezinKalender.toIsoDate(vandaag);
+      const dagNamenKort = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
+
+      const headerHtml = dagNamenKort.map(d => `<div>${d}</div>`).join('');
+      const cellenHtml = weken.map(week => week.map(cel => {
+        const items = perDatum[cel.datum] || [];
+        const zichtbaar = items.slice(0, 3);
+        const meer = items.length - zichtbaar.length;
+        return `
+          <div class="maand-grid-cel ${cel.buitenMaand ? 'buiten-maand' : ''} ${cel.datum === vandaagIso ? 'vandaag' : ''}" data-datum="${cel.datum}">
+            <span class="maand-grid-dagnummer">${cel.dagNummer}</span>
+            <div class="maand-grid-items">
+              ${zichtbaar.map(item => `<div class="maand-grid-item" style="background:${kleurVoorGridItem(item)}">${escapeHtml(item.titel)}</div>`).join('')}
+              ${meer > 0 ? `<div class="maand-grid-meer">+${meer}</div>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('')).join('');
+
+      const gridEl = document.getElementById('kalender-maand-grid');
+      gridEl.innerHTML = `<div class="maand-grid-headers">${headerHtml}</div><div class="maand-grid">${cellenHtml}</div>`;
+
+      gridEl.querySelectorAll('.maand-grid-cel').forEach(cel => {
+        cel.addEventListener('click', () => {
+          const datum = cel.getAttribute('data-datum');
+          wisselKalenderWeergave(false);
+          const groep = agendaLijstEl.querySelector(`[data-datum="${datum}"]`);
+          if (groep) groep.scrollIntoView({ block: 'start' });
+        });
+      });
+    }
+
+    const kalenderWeergaveToggleBtn = document.getElementById('kalender-weergave-toggle');
+    function wisselKalenderWeergave(naarGrid) {
+      weergaveIsGrid = naarGrid;
+      agendaLijstEl.style.display = weergaveIsGrid ? 'none' : '';
+      document.getElementById('kalender-maand-grid').style.display = weergaveIsGrid ? '' : 'none';
+      kalenderWeergaveToggleBtn.textContent = weergaveIsGrid ? '📋' : '🗓️';
+      kalenderWeergaveToggleBtn.title = weergaveIsGrid ? 'Wissel naar lijstweergave' : 'Wissel naar maandoverzicht';
+      renderAgenda();
+    }
+    kalenderWeergaveToggleBtn.addEventListener('click', () => wisselKalenderWeergave(!weergaveIsGrid));
 
     function renderAgenda() {
+      if (weergaveIsGrid) renderMaandGrid();
       renderMaandLabel();
       renderVerjaardagenOverzicht();
       let dagen = GezinKalender.buildMonthAgenda(afspraken, verjaardagen, bekekenJaar, bekekenMaand, vandaag);
@@ -2233,7 +2410,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         <div class="agenda-dag-groep ${dag.verleden ? 'verleden' : ''}" data-datum="${dag.datum}">
           <div class="agenda-dag-titel">${formatDagTitel(dag.datum)}</div>
           ${dag.items.map(item => `
-            <div class="agenda-item ${item.type === 'verjaardag' ? 'verjaardag' : ''} ${item.type === 'extern' ? 'extern' : ''}" ${item.type === 'afspraak' ? `data-id="${item.id}"` : ''} ${item.type === 'extern' ? `data-uid="${escapeHtml(item.uid)}"` : ''}>
+            <div class="agenda-item ${item.type === 'verjaardag' ? 'verjaardag' : ''} ${item.type === 'feestdag' ? 'feestdag' : ''} ${item.type === 'extern' ? 'extern' : ''}" ${item.type === 'afspraak' ? `data-id="${item.id}"` : ''} ${item.type === 'extern' ? `data-uid="${escapeHtml(item.uid)}"` : ''}>
               ${item.type === 'taak'
                 ? `<div class="checkbox" data-role="toggle-taak-kalender" data-id="${item.id}" style="${(taken.find(t => t.id === item.id) && subtaken.some(s => s.taak_id === item.id)) ? 'opacity:0.4; cursor:default;' : ''}"></div>`
                 : `<span class="tijd">${formatTijdWeergave(item)}</span>`}
