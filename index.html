@@ -500,9 +500,31 @@
 
     <div class="vaste-artikelen-link" id="open-ics-modal">🔗 Agenda-abonnement (voor iPhone Agenda-app)</div>
     <div class="vaste-artikelen-link" id="open-ics-import-modal">📥 Externe kalenders koppelen</div>
+    <div class="vaste-artikelen-link" id="open-meldingen-modal">🔔 Meldingen voor afspraken</div>
 
     <button class="fab-add-btn" id="open-afspraak-add-modal" title="Nieuwe afspraak">+</button>
   </section>
+
+  <div class="modal-overlay" id="meldingen-modal-overlay">
+    <div class="modal">
+      <button class="modal-close" id="close-meldingen-modal">✕</button>
+      <h2>Meldingen voor afspraken</h2>
+      <p style="font-size:13px; color:var(--muted); margin-top:-4px;">
+        Ontvang een pushmelding op dit toestel vlak voor een afspraak — stel de herinnering per afspraak in
+        (bijv. "30 minuten van tevoren"). Je krijgt alleen een melding voor afspraken waar jijzelf bij staat.
+      </p>
+      <div id="meldingen-status" style="margin:10px 0; font-size:14px;"></div>
+      <div class="betrokkenen-form-titel">Voor wie is dit toestel?</div>
+      <div class="add-row">
+        <select id="meldingen-wie-select">
+          <option value="bert">Bert</option>
+          <option value="ellen">Ellen</option>
+        </select>
+      </div>
+      <button class="btn-add" id="meldingen-inschakelen-btn" style="width:100%; margin-top:6px;">🔔 Meldingen inschakelen</button>
+      <button id="meldingen-uitschakelen-btn" style="display:none; background:none; border:1px solid var(--danger); color:var(--danger); border-radius:8px; padding:8px 12px; width:100%; cursor:pointer; margin-top:8px;">Meldingen uitschakelen op dit toestel</button>
+    </div>
+  </div>
 
   <div class="modal-overlay" id="ics-import-modal-overlay">
     <div class="modal">
@@ -720,6 +742,15 @@
     </div>
     <div class="betrokkenen-form-titel">Deelnemers</div>
     <div class="betrokkenen-kies" id="afspraak-betrokkenen-kies"></div>
+    <div class="add-row" style="margin-top:10px;">
+      <select id="afspraak-herinnering-select">
+        <option value="">Geen herinnering</option>
+        <option value="10">Herinner 10 minuten van tevoren</option>
+        <option value="30">Herinner 30 minuten van tevoren</option>
+        <option value="60">Herinner 1 uur van tevoren</option>
+        <option value="1440">Herinner 1 dag van tevoren</option>
+      </select>
+    </div>
     <button class="btn-add" id="afspraak-add-btn" title="Toevoegen" style="width:100%; margin-top:8px;">+ Toevoegen</button>
   </div>
 </div>
@@ -759,6 +790,15 @@
     </div>
     <div class="betrokkenen-form-titel">Deelnemers</div>
     <div class="betrokkenen-kies" id="edit-afspraak-betrokkenen-kies"></div>
+    <div class="add-row" style="margin-top:10px;">
+      <select id="edit-afspraak-herinnering-select">
+        <option value="">Geen herinnering</option>
+        <option value="10">Herinner 10 minuten van tevoren</option>
+        <option value="30">Herinner 30 minuten van tevoren</option>
+        <option value="60">Herinner 1 uur van tevoren</option>
+        <option value="1440">Herinner 1 dag van tevoren</option>
+      </select>
+    </div>
     <button class="btn-add" id="edit-afspraak-save-btn" style="margin-top:8px; width:100%;">Opslaan</button>
     <div id="edit-afspraak-reeks-sectie" style="display:none; margin-top:14px; padding-top:12px; border-top:1px solid var(--border);">
       <div style="font-size:13px; color:var(--muted); margin-bottom:6px;">🔁 Onderdeel van een herhalende reeks</div>
@@ -839,7 +879,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.34';
+const APP_VERSIE = 'v0.35';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -1332,7 +1372,13 @@ const GezinKalender = (function () {
     return { tijd: rondAfOpVijfMinuten(uren, minuten) };
   }
 
-  function buildAfspraakInsertPayload({ titel, datum, tijd, eindtijd, betrokkenen }) {
+  // Herinneringen gaan via pushmeldingen naar de betrokken persoon/personen
+  // zelf (Bert/Ellen — auto's kunnen geen melding ontvangen) — vandaar dat
+  // een herinnering een starttijd én minstens één persoon-betrokkene vereist.
+  const HERINNERING_OPTIES = [10, 30, 60, 1440];
+  const HERINNERING_PERSOON_KEYS = ['bert', 'ellen'];
+
+  function buildAfspraakInsertPayload({ titel, datum, tijd, eindtijd, betrokkenen, herinneringMinuten }) {
     if (!titel || !titel.trim()) throw new Error('Titel is verplicht');
     if (!datum) throw new Error('Datum is verplicht');
     const geldigeKeys = BETROKKENEN.map(b => b.key);
@@ -1342,12 +1388,23 @@ const GezinKalender = (function () {
     const eindtijdWaarde = eindtijd && eindtijd.trim() ? eindtijd.trim() : null;
     if (eindtijdWaarde && !tijdWaarde) throw new Error('Eindtijd kan alleen samen met een starttijd');
     if (eindtijdWaarde && tijdWaarde && eindtijdWaarde <= tijdWaarde) throw new Error('Eindtijd moet na de starttijd liggen');
+
+    let herinneringWaarde = null;
+    if (herinneringMinuten !== null && herinneringMinuten !== undefined && herinneringMinuten !== '') {
+      herinneringWaarde = Number(herinneringMinuten);
+      if (!HERINNERING_OPTIES.includes(herinneringWaarde)) throw new Error('Ongeldige herinneringsduur');
+      if (!tijdWaarde) throw new Error('Een herinnering vereist een starttijd');
+      if (!gekozen.some(k => HERINNERING_PERSOON_KEYS.includes(k))) throw new Error('Een herinnering vereist minstens één betrokkene (Bert of Ellen)');
+    }
+
     return {
       titel: titel.trim(),
       datum,
       tijd: tijdWaarde,
       eindtijd: eindtijdWaarde,
       betrokkenen: gekozen,
+      herinnering_minuten: herinneringWaarde,
+      herinnering_verzonden: false,
     };
   }
 
@@ -1487,6 +1544,7 @@ const GezinKalender = (function () {
     berekenVolgendeDatum, genereerReeksData, berekenNieuweHorizon, moetReeksVerlengdWorden, buildReeksInsertPayload, zoekAfspraken, zoekVerjaardagen,
     rondAfOpVijfMinuten, parseTijdInvoer, filterAgendaOpBetrokkenen,
     berekenPasenDatum, getNederlandseFeestdagen, getFeestdagenInMaand, buildMaandGridWeken,
+    HERINNERING_OPTIES, HERINNERING_PERSOON_KEYS,
   };
 })();
 
@@ -2590,6 +2648,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           tijd: afspraakTijdInput.value,
           eindtijd: afspraakEindtijdInput.value,
           betrokkenen: afspraakBetrokkenenKies.getGekozen(),
+          herinneringMinuten: document.getElementById('afspraak-herinnering-select').value || null,
         });
       } catch (err) {
         alert(err.message);
@@ -2624,6 +2683,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       afspraakEindtijdInput.value = '';
       afspraakDatumInput.value = GezinKalender.toIsoDate(vandaag);
       document.getElementById('afspraak-herhaal-select').value = '';
+      document.getElementById('afspraak-herinnering-select').value = '';
       afspraakBetrokkenenKies.reset();
       document.getElementById('afspraak-add-modal-overlay').classList.remove('open');
     });
@@ -2646,6 +2706,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       document.getElementById('edit-afspraak-datum-input').value = afspraak.datum;
       document.getElementById('edit-afspraak-tijd-input').value = afspraak.tijd || '';
       document.getElementById('edit-afspraak-eindtijd-input').value = afspraak.eindtijd || '';
+      document.getElementById('edit-afspraak-herinnering-select').value = afspraak.herinnering_minuten != null ? String(afspraak.herinnering_minuten) : '';
       editBetrokkenenKies.setGekozen(afspraak.betrokkenen || []);
       document.getElementById('edit-afspraak-reeks-sectie').style.display = editingAfspraakReeksId ? '' : 'none';
       afspraakEditModalOverlay.classList.add('open');
@@ -2677,6 +2738,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           tijd: editTijdInput.value,
           eindtijd: editEindtijdInput.value,
           betrokkenen: editBetrokkenenKies.getGekozen(),
+          herinneringMinuten: document.getElementById('edit-afspraak-herinnering-select').value || null,
         });
       } catch (err) {
         alert(err.message);
@@ -2795,6 +2857,121 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         console.error(fout);
       }
     }
+
+    // --- Pushmeldingen voor afspraken-herinneringen ---
+    // "Wie ben ik" wordt lokaal per toestel onthouden (geen accounts in deze
+    // app) zodat de herinnering alleen naar het toestel van de daadwerkelijk
+    // betrokken persoon gestuurd wordt, niet naar het hele huishouden.
+    const MELDINGEN_WIE_KEY = 'oranjetipje_wie_ben_ik';
+    const VAPID_PUBLIC_KEY = 'BGkfH67EacmM5-ZA0FX--gY1Yz--unb2rP3SaDPvNokty7NTVYeO_lTU9LjvEXqWQ0_MyEVVR-lXTP2U4SwrHZ8';
+
+    function urlBase64ToUint8Array(base64String) {
+      const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const ruw = atob(base64);
+      return Uint8Array.from([...ruw].map(c => c.charCodeAt(0)));
+    }
+
+    const meldingenModalOverlay = document.getElementById('meldingen-modal-overlay');
+    const meldingenStatusEl = document.getElementById('meldingen-status');
+    const meldingenWieSelect = document.getElementById('meldingen-wie-select');
+    const meldingenInschakelenBtn = document.getElementById('meldingen-inschakelen-btn');
+    const meldingenUitschakelenBtn = document.getElementById('meldingen-uitschakelen-btn');
+    const meldingenOndersteund = 'serviceWorker' in navigator && 'PushManager' in window;
+
+    // navigator.serviceWorker.ready blijft voor altijd hangen als de service
+    // worker om wat voor reden dan ook nooit actief wordt (bijv. een
+    // netwerkhapering bij het laden) — vandaar een harde timeout, anders
+    // blijft dit scherm stilzwijgend leeg zonder dat iets fout lijkt te gaan.
+    function serviceWorkerKlaarMetTimeout(timeoutMs = 4000) {
+      return Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Service worker reageert niet')), timeoutMs)),
+      ]);
+    }
+
+    async function huidigMeldingenAbonnement() {
+      if (!meldingenOndersteund) return null;
+      const reg = await serviceWorkerKlaarMetTimeout();
+      return reg.pushManager.getSubscription();
+    }
+
+    async function renderMeldingenStatus() {
+      const opgeslagenWie = localStorage.getItem(MELDINGEN_WIE_KEY);
+      if (opgeslagenWie) meldingenWieSelect.value = opgeslagenWie;
+      if (!meldingenOndersteund) {
+        meldingenStatusEl.textContent = 'Dit toestel of deze browser ondersteunt geen pushmeldingen.';
+        meldingenInschakelenBtn.style.display = 'none';
+        meldingenUitschakelenBtn.style.display = 'none';
+        return;
+      }
+      meldingenStatusEl.textContent = 'Status controleren...';
+      try {
+        const sub = await huidigMeldingenAbonnement();
+        if (sub && opgeslagenWie) {
+          meldingenStatusEl.textContent = `✅ Meldingen staan aan voor ${opgeslagenWie === 'bert' ? 'Bert' : 'Ellen'} op dit toestel.`;
+          meldingenInschakelenBtn.style.display = 'none';
+          meldingenUitschakelenBtn.style.display = '';
+        } else {
+          meldingenStatusEl.textContent = 'Meldingen staan nog niet aan op dit toestel.';
+          meldingenInschakelenBtn.style.display = '';
+          meldingenUitschakelenBtn.style.display = 'none';
+        }
+      } catch (fout) {
+        meldingenStatusEl.textContent = 'Kon de status niet controleren. Herlaad de app en probeer het opnieuw.';
+        meldingenInschakelenBtn.style.display = '';
+        meldingenUitschakelenBtn.style.display = 'none';
+      }
+    }
+
+    document.getElementById('open-meldingen-modal').addEventListener('click', () => {
+      renderMeldingenStatus();
+      meldingenModalOverlay.classList.add('open');
+    });
+    document.getElementById('close-meldingen-modal').addEventListener('click', () => {
+      meldingenModalOverlay.classList.remove('open');
+    });
+
+    meldingenInschakelenBtn.addEventListener('click', async () => {
+      if (!meldingenOndersteund) { alert('Dit toestel of deze browser ondersteunt geen pushmeldingen.'); return; }
+      try {
+        const permissie = await Notification.requestPermission();
+        if (permissie !== 'granted') {
+          alert('Meldingen zijn niet toegestaan. Zet dit aan bij de instellingen van je toestel/browser om herinneringen te ontvangen.');
+          return;
+        }
+        const wie = meldingenWieSelect.value;
+        const reg = await serviceWorkerKlaarMetTimeout();
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+          sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+          });
+        }
+        const json = sub.toJSON();
+        const { error } = await supabase.from('kalender_push_abonnementen').upsert({
+          betrokkene: wie,
+          endpoint: json.endpoint,
+          p256dh: json.keys.p256dh,
+          auth: json.keys.auth,
+        }, { onConflict: 'endpoint' });
+        if (error) { alert('Kon meldingen niet inschakelen: ' + error.message); return; }
+        localStorage.setItem(MELDINGEN_WIE_KEY, wie);
+        await renderMeldingenStatus();
+      } catch (fout) {
+        alert('Kon meldingen niet inschakelen: ' + fout.message);
+      }
+    });
+
+    meldingenUitschakelenBtn.addEventListener('click', async () => {
+      const sub = await huidigMeldingenAbonnement();
+      if (sub) {
+        await supabase.from('kalender_push_abonnementen').delete().eq('endpoint', sub.endpoint);
+        await sub.unsubscribe();
+      }
+      await renderMeldingenStatus();
+    });
 
     const icsModalOverlay = document.getElementById('ics-modal-overlay');
     document.getElementById('open-ics-modal').addEventListener('click', () => {
@@ -3875,7 +4052,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           const basis = laatsteRij[0];
           const nieuweRijen = nieuweDatums.map(datum => ({
             titel: basis.titel, tijd: basis.tijd, eindtijd: basis.eindtijd, betrokkenen: basis.betrokkenen,
-            datum, reeks_id: reeks.id,
+            herinnering_minuten: basis.herinnering_minuten, datum, reeks_id: reeks.id,
           }));
           await supabase.from('kalender_afspraken').insert(nieuweRijen);
           await supabase.from('kalender_reeksen').update({ gegenereerd_tot: nieuweHorizon }).eq('id', reeks.id);

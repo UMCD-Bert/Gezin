@@ -36,6 +36,34 @@ function isAppShellRequest(request) {
   return APP_SHELL.includes(request.url);
 }
 
+// Afspraak-herinneringen komen binnen als een pushmelding vanaf de
+// stuur-herinneringen Edge Function — puur tonen, geen eigen logica hier
+// over wanneer/aan wie (dat is al bepaald vóórdat de melding hier aankomt).
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (fout) { data = {}; }
+  const titel = data.titel || 'Oranjetipje';
+  event.waitUntil(
+    self.registration.showNotification(titel, {
+      body: data.body || '',
+      icon: './icons/icon-192.png',
+      badge: './icons/icon-192.png',
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ('focus' in client) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow('./');
+    })
+  );
+});
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET' || !isAppShellRequest(request)) return;
