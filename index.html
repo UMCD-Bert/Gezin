@@ -893,7 +893,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.38';
+const APP_VERSIE = 'v0.39';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -1361,14 +1361,14 @@ const GezinKalender = (function () {
     return `${String(u).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   }
 
-  // Accepteert "14:30", "14.30", "1430", "930", "14" als tijdsinvoer.
+  // Accepteert "14:30", "14.30", "1430", "930", "14" (en "14:30:00", zoals de database en iOS-tijdvelden die teruggeven) als tijdsinvoer.
   // Geeft { tijd: 'HH:MM' } terug (afgerond op 5 min), { tijd: null } bij lege
   // invoer, of { error: true } als het écht niet te parsen is.
   function parseTijdInvoer(str) {
     const s = (str || '').trim();
     if (!s) return { tijd: null };
     let uren, minuten;
-    const sepMatch = s.match(/^(\d{1,2})[:.hu](\d{1,2})$/i);
+    const sepMatch = s.match(/^(\d{1,2})[:.hu](\d{1,2})(?::\d{2})?$/i);
     if (sepMatch) {
       uren = parseInt(sepMatch[1], 10);
       minuten = parseInt(sepMatch[2], 10);
@@ -2747,8 +2747,8 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       editingAfspraakReeksId = afspraak.reeks_id || null;
       document.getElementById('edit-afspraak-titel-input').value = afspraak.titel;
       document.getElementById('edit-afspraak-datum-input').value = afspraak.datum;
-      document.getElementById('edit-afspraak-tijd-input').value = afspraak.tijd || '';
-      document.getElementById('edit-afspraak-eindtijd-input').value = afspraak.eindtijd || '';
+      document.getElementById('edit-afspraak-tijd-input').value = GezinKalender.normalizeTijd(afspraak.tijd) || '';
+      document.getElementById('edit-afspraak-eindtijd-input').value = GezinKalender.normalizeTijd(afspraak.eindtijd) || '';
       document.getElementById('edit-afspraak-herinnering-select').value = afspraak.herinnering_minuten != null ? String(afspraak.herinnering_minuten) : '';
       document.getElementById('edit-afspraak-locatie-input').value = afspraak.locatie || '';
       editBetrokkenenKies.setGekozen(afspraak.betrokkenen || []);
