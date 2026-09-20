@@ -202,6 +202,7 @@
   .agenda-item.extern { opacity: 0.85; }
   .agenda-item.extern .titel { color: var(--muted); }
   .agenda-item .edit-btn { flex-shrink: 0; }
+  .locatie-link { display: block; font-size: 12px; color: var(--accent); text-decoration: none; margin-top: 2px; word-break: break-word; }
 
   .maand-grid-headers { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
   .maand-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
@@ -733,6 +734,9 @@
       <input id="afspraak-eindtijd-input" type="text" inputmode="numeric" placeholder="Eindtijd (optioneel)">
     </div>
     <div class="add-row">
+      <input id="afspraak-locatie-input" type="text" placeholder="📍 Locatie of Google Maps-link (optioneel)">
+    </div>
+    <div class="add-row">
       <select id="afspraak-herhaal-select">
         <option value="">Herhaalt niet</option>
         <option value="wekelijks">Elke week</option>
@@ -790,6 +794,9 @@
     <div class="add-row">
       <input id="edit-afspraak-tijd-input" type="time" step="300" placeholder="Starttijd (optioneel)">
       <input id="edit-afspraak-eindtijd-input" type="time" step="300" placeholder="Eindtijd (optioneel)">
+    </div>
+    <div class="add-row">
+      <input id="edit-afspraak-locatie-input" type="text" placeholder="📍 Locatie of Google Maps-link (optioneel)">
     </div>
     <div class="betrokkenen-form-titel">Deelnemers</div>
     <div class="betrokkenen-kies" id="edit-afspraak-betrokkenen-kies"></div>
@@ -886,7 +893,7 @@
 // ---------------------------------------------------------------
 const SUPABASE_URL = 'https://vlhjikyslkkekxtapzqj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I';
-const APP_VERSIE = 'v0.37';
+const APP_VERSIE = 'v0.38';
 
 // Kleine SVG-avatars voor de betrokkenen bij een kalenderafspraak — zelfde
 // aanpak als de bank-logo's in de budget-app, maar als handgetekende vectors
@@ -1251,7 +1258,7 @@ const GezinKalender = (function () {
 
     const afspraakItems = afspraken
       .filter(a => a.datum >= first && a.datum <= last)
-      .map(a => ({ type: 'afspraak', id: a.id, titel: a.titel, datum: a.datum, tijd: normalizeTijd(a.tijd), eindtijd: normalizeTijd(a.eindtijd), betrokkenen: a.betrokkenen || [], reeks_id: a.reeks_id || null }));
+      .map(a => ({ type: 'afspraak', id: a.id, titel: a.titel, datum: a.datum, tijd: normalizeTijd(a.tijd), eindtijd: normalizeTijd(a.eindtijd), betrokkenen: a.betrokkenen || [], reeks_id: a.reeks_id || null, locatie: a.locatie || null }));
 
     const verjaardagItems = getBirthdayOccurrencesInMonth(verjaardagen, year, month);
     const feestdagItems = getFeestdagenInMaand(year, month);
@@ -1379,13 +1386,30 @@ const GezinKalender = (function () {
     return { tijd: rondAfOpVijfMinuten(uren, minuten) };
   }
 
+  // Eén vrij veld: adres/plaatsnaam en/of een geplakte link. Een http(s)-link
+  // wordt direct gebruikt; alleen tekst wordt een Google Maps-zoekopdracht.
+  // (De Edge Function stuur-herinneringen heeft dezelfde logica nodig voor de
+  // pushmelding — houd die twee in sync.)
+  const LOCATIE_MAX_LENGTE = 300;
+  function parseLocatie(locatie) {
+    const tekst = (locatie || '').trim();
+    if (!tekst) return null;
+    const urlMatch = tekst.match(/https?:\/\/\S+/i);
+    const url = urlMatch ? urlMatch[0] : null;
+    const label = (url ? tekst.replace(url, '') : tekst).replace(/\s+/g, ' ').trim();
+    return {
+      label: label || 'Bekijk op kaart',
+      url: url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(label)}`,
+    };
+  }
+
   // Herinneringen gaan via pushmeldingen naar de betrokken persoon/personen
   // zelf (Bert/Ellen — auto's kunnen geen melding ontvangen) — vandaar dat
   // een herinnering een starttijd én minstens één persoon-betrokkene vereist.
   const HERINNERING_OPTIES = [5, 10, 15, 30, 60, 120, 1440];
   const HERINNERING_PERSOON_KEYS = ['bert', 'ellen'];
 
-  function buildAfspraakInsertPayload({ titel, datum, tijd, eindtijd, betrokkenen, herinneringMinuten }) {
+  function buildAfspraakInsertPayload({ titel, datum, tijd, eindtijd, betrokkenen, herinneringMinuten, locatie }) {
     if (!titel || !titel.trim()) throw new Error('Titel is verplicht');
     if (!datum) throw new Error('Datum is verplicht');
     const geldigeKeys = BETROKKENEN.map(b => b.key);
@@ -1404,6 +1428,9 @@ const GezinKalender = (function () {
       if (!gekozen.some(k => HERINNERING_PERSOON_KEYS.includes(k))) throw new Error('Een herinnering vereist minstens één betrokkene (Bert of Ellen)');
     }
 
+    const locatieWaarde = locatie && locatie.trim() ? locatie.trim() : null;
+    if (locatieWaarde && locatieWaarde.length > LOCATIE_MAX_LENGTE) throw new Error('Locatie is te lang');
+
     return {
       titel: titel.trim(),
       datum,
@@ -1412,6 +1439,7 @@ const GezinKalender = (function () {
       betrokkenen: gekozen,
       herinnering_minuten: herinneringWaarde,
       herinnering_verzonden: false,
+      locatie: locatieWaarde,
     };
   }
 
@@ -1532,8 +1560,8 @@ const GezinKalender = (function () {
     const term = (zoekterm || '').trim().toLowerCase();
     if (!term) return [];
     return (afspraken || [])
-      .filter(a => a.titel.toLowerCase().includes(term))
-      .map(a => ({ type: 'afspraak', id: a.id, titel: a.titel, datum: a.datum, tijd: normalizeTijd(a.tijd), eindtijd: normalizeTijd(a.eindtijd), betrokkenen: a.betrokkenen || [], reeks_id: a.reeks_id || null }))
+      .filter(a => a.titel.toLowerCase().includes(term) || (a.locatie || '').toLowerCase().includes(term))
+      .map(a => ({ type: 'afspraak', id: a.id, titel: a.titel, datum: a.datum, tijd: normalizeTijd(a.tijd), eindtijd: normalizeTijd(a.eindtijd), betrokkenen: a.betrokkenen || [], reeks_id: a.reeks_id || null, locatie: a.locatie || null }))
       .sort((a, b) => a.datum.localeCompare(b.datum));
   }
 
@@ -1551,7 +1579,7 @@ const GezinKalender = (function () {
     berekenVolgendeDatum, genereerReeksData, berekenNieuweHorizon, moetReeksVerlengdWorden, buildReeksInsertPayload, zoekAfspraken, zoekVerjaardagen,
     rondAfOpVijfMinuten, parseTijdInvoer, filterAgendaOpBetrokkenen,
     berekenPasenDatum, getNederlandseFeestdagen, getFeestdagenInMaand, buildMaandGridWeken,
-    HERINNERING_OPTIES, HERINNERING_PERSOON_KEYS,
+    HERINNERING_OPTIES, HERINNERING_PERSOON_KEYS, parseLocatie,
   };
 })();
 
@@ -2351,6 +2379,12 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     }
     populateMaandSelect();
 
+    function renderLocatieLink(locatie) {
+      const l = GezinKalender.parseLocatie(locatie);
+      if (!l) return '';
+      return `<a class="locatie-link" href="${escapeHtml(l.url)}" target="_blank" rel="noopener">📍 ${escapeHtml(l.label)}</a>`;
+    }
+
     function renderBetrokkeneBadges(keys) {
       return `<div class="betrokkenen-rij">${keys.map(key => {
         const b = GezinKalender.BETROKKENEN.find(x => x.key === key);
@@ -2479,7 +2513,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
               ${item.type === 'taak'
                 ? `<div class="checkbox" data-role="toggle-taak-kalender" data-id="${item.id}" style="${(taken.find(t => t.id === item.id) && subtaken.some(s => s.taak_id === item.id)) ? 'opacity:0.4; cursor:default;' : ''}"></div>`
                 : `<span class="tijd">${formatTijdWeergave(item)}</span>`}
-              <span class="titel">${item.type === 'afspraak' && item.reeks_id ? '🔁 ' : ''}${item.type === 'extern' ? '🔗 ' : ''}${escapeHtml(item.titel)}</span>
+              <span class="titel">${item.type === 'afspraak' && item.reeks_id ? '🔁 ' : ''}${item.type === 'extern' ? '🔗 ' : ''}${escapeHtml(item.titel)}${item.type === 'afspraak' ? renderLocatieLink(item.locatie) : ''}</span>
               ${item.type === 'afspraak' ? renderBetrokkeneBadges(item.betrokkenen) : ''}
               ${item.type === 'taak' ? renderBetrokkeneBadges(item.actiehouders) : ''}
               ${item.type === 'extern' ? renderBetrokkeneBadges(item.betrokkenen) : ''}
@@ -2583,7 +2617,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         html += afspraakResultaten.map(item => `
           <div class="agenda-item" data-id="${item.id}">
             <span class="tijd">${formatTijdWeergave(item)}</span>
-            <span class="titel">${item.reeks_id ? '🔁 ' : ''}${escapeHtml(item.titel)} — ${formatZoekDatum(item.datum)}</span>
+            <span class="titel">${item.reeks_id ? '🔁 ' : ''}${escapeHtml(item.titel)} — ${formatZoekDatum(item.datum)}${renderLocatieLink(item.locatie)}</span>
             ${renderBetrokkeneBadges(item.betrokkenen)}
             <button class="edit-btn" data-role="edit-afspraak-zoekresultaat" title="Bewerken">✏️</button>
           </div>
@@ -2656,6 +2690,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           eindtijd: afspraakEindtijdInput.value,
           betrokkenen: afspraakBetrokkenenKies.getGekozen(),
           herinneringMinuten: document.getElementById('afspraak-herinnering-select').value || null,
+          locatie: document.getElementById('afspraak-locatie-input').value,
         });
       } catch (err) {
         alert(err.message);
@@ -2691,6 +2726,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       afspraakDatumInput.value = GezinKalender.toIsoDate(vandaag);
       document.getElementById('afspraak-herhaal-select').value = '';
       document.getElementById('afspraak-herinnering-select').value = '';
+      document.getElementById('afspraak-locatie-input').value = '';
       afspraakBetrokkenenKies.reset();
       document.getElementById('afspraak-add-modal-overlay').classList.remove('open');
     });
@@ -2714,6 +2750,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       document.getElementById('edit-afspraak-tijd-input').value = afspraak.tijd || '';
       document.getElementById('edit-afspraak-eindtijd-input').value = afspraak.eindtijd || '';
       document.getElementById('edit-afspraak-herinnering-select').value = afspraak.herinnering_minuten != null ? String(afspraak.herinnering_minuten) : '';
+      document.getElementById('edit-afspraak-locatie-input').value = afspraak.locatie || '';
       editBetrokkenenKies.setGekozen(afspraak.betrokkenen || []);
       document.getElementById('edit-afspraak-reeks-sectie').style.display = editingAfspraakReeksId ? '' : 'none';
       afspraakEditModalOverlay.classList.add('open');
@@ -2746,6 +2783,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           eindtijd: editEindtijdInput.value,
           betrokkenen: editBetrokkenenKies.getGekozen(),
           herinneringMinuten: document.getElementById('edit-afspraak-herinnering-select').value || null,
+          locatie: document.getElementById('edit-afspraak-locatie-input').value,
         });
       } catch (err) {
         alert(err.message);
@@ -4068,7 +4106,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           const basis = laatsteRij[0];
           const nieuweRijen = nieuweDatums.map(datum => ({
             titel: basis.titel, tijd: basis.tijd, eindtijd: basis.eindtijd, betrokkenen: basis.betrokkenen,
-            herinnering_minuten: basis.herinnering_minuten, datum, reeks_id: reeks.id,
+            herinnering_minuten: basis.herinnering_minuten, locatie: basis.locatie, datum, reeks_id: reeks.id,
           }));
           await supabase.from('kalender_afspraken').insert(nieuweRijen);
           await supabase.from('kalender_reeksen').update({ gegenereerd_tot: nieuweHorizon }).eq('id', reeks.id);

@@ -48,12 +48,19 @@ self.addEventListener('push', (event) => {
       body: data.body || '',
       icon: './icons/icon-192.png',
       badge: './icons/icon-192.png',
+      data: { url: data.url || null },
     })
   );
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  // Heeft de afspraak een locatie, dan opent een tik op de melding direct de kaart.
+  const kaartUrl = event.notification.data && event.notification.data.url;
+  if (kaartUrl) {
+    event.waitUntil(self.clients.openWindow(kaartUrl));
+    return;
+  }
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
